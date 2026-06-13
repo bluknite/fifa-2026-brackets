@@ -13,6 +13,7 @@ export default function App() {
   const [tournamentResults, setTournamentResults] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(true);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   // 1. Auth Listener
   useEffect(() => {
@@ -32,6 +33,14 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Click outside to close profile dropdown
+  useEffect(() => {
+    if (!showProfileMenu) return;
+    const closeMenu = () => setShowProfileMenu(false);
+    document.addEventListener('click', closeMenu);
+    return () => document.removeEventListener('click', closeMenu);
+  }, [showProfileMenu]);;
 
   // 2. Fetch User Profile and Bracket, and Official Results when session changes
   useEffect(() => {
@@ -217,20 +226,36 @@ export default function App() {
             {isAdmin && <option value="admin">Admin</option>}
           </select>
 
-          <div className="user-profile">
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }} className="desktop-only">
-              {profile?.display_name || session.user.email}
-            </span>
-            {profile?.avatar_url ? (
-              <img src={profile.avatar_url} alt="Profile" className="user-avatar" />
-            ) : (
-              <div className="user-avatar" style={{ background: 'var(--emerald)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000', fontWeight: 'bold' }}>
-                {profile?.display_name?.charAt(0).toUpperCase() || 'P'}
+          <div className="user-profile" style={{ position: 'relative' }}>
+            <div 
+              className="user-avatar-trigger"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowProfileMenu(!showProfileMenu);
+              }}
+              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+            >
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt="Profile" className="user-avatar" />
+              ) : (
+                <div className="user-avatar" style={{ background: 'var(--emerald)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000', fontWeight: 'bold' }}>
+                  {profile?.display_name?.charAt(0).toUpperCase() || 'P'}
+                </div>
+              )}
+            </div>
+
+            {showProfileMenu && (
+              <div className="profile-dropdown-menu">
+                <div className="profile-dropdown-info">
+                  <div className="profile-dropdown-name">{profile?.display_name || 'Player'}</div>
+                  <div className="profile-dropdown-email">{session.user.email}</div>
+                </div>
+                <hr className="profile-dropdown-divider" />
+                <button className="profile-dropdown-item" onClick={handleLogout}>
+                  🚪 Logout
+                </button>
               </div>
             )}
-            <button className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }} onClick={handleLogout}>
-              Logout
-            </button>
           </div>
         </div>
       </header>
