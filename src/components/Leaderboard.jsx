@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { getTeamFlag } from './BracketEditor';
 
@@ -10,10 +10,6 @@ export default function Leaderboard({ currentUserId }) {
   // State for viewing someone's bracket
   const [selectedUserBracket, setSelectedUserBracket] = useState(null);
   const [showModal, setShowModal] = useState(false);
-
-  useEffect(() => {
-    fetchLeaderboard();
-  }, []);
 
   const fetchLeaderboard = async () => {
     try {
@@ -65,6 +61,10 @@ export default function Leaderboard({ currentUserId }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchLeaderboard();
+  }, []);
 
   const handleViewBracket = (user) => {
     if (!user.predictions) return;

@@ -123,6 +123,72 @@ export const getThirdPlaceTeams = (groupsState) => {
   });
 };
 
+export const calculateScore = (userPredictions, official) => {
+  let score = 0;
+
+  // 1. Group Stage Match predictions: +5 pts each
+  if (userPredictions.groupMatches && official.actual_matches) {
+    Object.keys(official.actual_matches).forEach(matchId => {
+      const actual = official.actual_matches[matchId];
+      if (actual && actual.completed) {
+        const pred = userPredictions.groupMatches[matchId];
+        if (pred === actual.outcome) {
+          score += 5;
+        }
+      }
+    });
+  }
+
+  // 2. Group stage: 10 pts per correct advancing team (top 2)
+  if (userPredictions.groups && official.groups) {
+    Object.keys(official.groups).forEach(g => {
+      if (official.completed_games?.includes(`group_${g}`)) {
+        const predAdv = (userPredictions.groups[g] || []).slice(0, 2);
+        const actAdv = (official.groups[g] || []).slice(0, 2);
+        predAdv.forEach(team => {
+          if (actAdv.includes(team)) score += 10;
+        });
+      }
+    });
+  }
+
+  // 3. Knockout matches
+  const stages = [
+    { key: 'r32', pts: 20 },
+    { key: 'r16', pts: 40 },
+    { key: 'qf', pts: 80 },
+    { key: 'sf', pts: 160 }
+  ];
+
+  stages.forEach(({ key, pts }) => {
+    const predStage = userPredictions.knockouts?.[key] || {};
+    const actStage = official.knockouts?.[key] || {};
+    Object.keys(predStage).forEach(matchId => {
+      if (official.completed_games?.includes(`${key}_${matchId}`)) {
+        if (predStage[matchId] === actStage[matchId] && actStage[matchId] !== null) {
+          score += pts;
+        }
+      }
+    });
+  });
+
+  // Third place
+  if (official.completed_games?.includes('third_place')) {
+    const predThird = userPredictions.knockouts?.third_place;
+    const actThird = official.knockouts?.third_place;
+    if (predThird === actThird && actThird !== null) score += 160;
+  }
+
+  // Final
+  if (official.completed_games?.includes('final')) {
+    const predFinal = userPredictions.knockouts?.final;
+    const actFinal = official.knockouts?.final;
+    if (predFinal === actFinal && actFinal !== null) score += 320;
+  }
+
+  return score;
+};
+
 export default function BracketEditor({ profile, bracket, tournamentResults, onSaveSuccess }) {
   const [activeSubTab, setActiveSubTab] = useState('groups'); // 'groups', 'knockouts'
   const [predictions, setPredictions] = useState(null);
@@ -273,11 +339,13 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
           }
         }
 
+        const calculatedScore = calculateScore(aligned, officialResults);
         const { error } = await supabase
           .from('brackets')
           .update({
             predictions: aligned,
             is_submitted: true,
+            score: calculatedScore,
             updated_at: new Date().toISOString()
           })
           .eq('user_id', profile.id);

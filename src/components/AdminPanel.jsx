@@ -541,28 +541,30 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
           })
           .eq('id', 'live');
         if (resultsError) throw resultsError;
-
-        // Recalculate user brackets scores
-        const { data: brackets, error: bracketsError } = await supabase
-          .from('brackets')
-          .select('*');
-        if (bracketsError) throw bracketsError;
-
-        const updates = brackets.map(b => {
-          const newScore = calculateScore(b.predictions, results);
-          return supabase
-            .from('brackets')
-            .update({ score: newScore })
-            .eq('id', b.id);
-        });
-        await Promise.all(updates);
-
         setLocalResults(results);
-        setStatusMsg({ type: 'success', message: `ESPN Score sync complete. ${updatedCount} updates recorded. User scores recalculated!` });
-        onResultsUpdated();
-      } else {
-        setStatusMsg({ type: 'success', message: 'Score sync complete. Standings are already up to date.' });
       }
+
+      // ALWAYS Recalculate user brackets scores on sync trigger
+      const { data: brackets, error: bracketsError } = await supabase
+        .from('brackets')
+        .select('*');
+      if (bracketsError) throw bracketsError;
+
+      const updates = brackets.map(b => {
+        const newScore = calculateScore(b.predictions, results);
+        return supabase
+          .from('brackets')
+          .update({ score: newScore })
+          .eq('id', b.id);
+      });
+      await Promise.all(updates);
+
+      if (updatedCount > 0) {
+        setStatusMsg({ type: 'success', message: `ESPN Score sync complete. ${updatedCount} updates recorded. User scores recalculated!` });
+      } else {
+        setStatusMsg({ type: 'success', message: 'Score sync complete. Standings are already up to date. User scores recalculated!' });
+      }
+      onResultsUpdated();
     } catch (err) {
       console.error(err);
       setStatusMsg({ type: 'error', message: err.message || 'Error executing ESPN Score sync.' });

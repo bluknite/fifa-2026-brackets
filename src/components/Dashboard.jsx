@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function Dashboard({ profile, bracket, tournamentResults, onNavigate }) {
   const isLocked = tournamentResults?.is_locked || false;
   const hasBracket = !!bracket && Object.keys(bracket.predictions || {}).length > 0;

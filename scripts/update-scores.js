@@ -471,31 +471,29 @@ async function run() {
       console.error("Database update error:", updateError);
       process.exit(1);
     }
-
-    // Load all brackets to recalculate scores
-    console.log("Recalculating scores for all user brackets...");
-    const { data: brackets, error: bracketsError } = await supabase
-      .from('brackets')
-      .select('*');
-
-    if (bracketsError) {
-      console.error("Error loading user brackets:", bracketsError);
-      process.exit(1);
-    }
-
-    const updates = brackets.map(b => {
-      const newScore = calculateScore(b.predictions, results);
-      return supabase
-        .from('brackets')
-        .update({ score: newScore })
-        .eq('id', b.id);
-    });
-
-    await Promise.all(updates);
-    console.log(`Successfully graded ${brackets.length} user brackets!`);
-  } else {
-    console.log("No new match updates found. Standings are up to date.");
   }
+
+  // Load all brackets to recalculate scores
+  console.log("Recalculating scores for all user brackets...");
+  const { data: brackets, error: bracketsError } = await supabase
+    .from('brackets')
+    .select('*');
+
+  if (bracketsError) {
+    console.error("Error loading user brackets:", bracketsError);
+    process.exit(1);
+  }
+
+  const updates = brackets.map(b => {
+    const newScore = calculateScore(b.predictions, results);
+    return supabase
+      .from('brackets')
+      .update({ score: newScore })
+      .eq('id', b.id);
+  });
+
+  await Promise.all(updates);
+  console.log(`Successfully graded ${brackets.length} user brackets!`);
 
   console.log("Score sync job complete!");
   process.exit(0);
