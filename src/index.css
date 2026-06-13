@@ -1135,3 +1135,13 @@ a:hover {
   }
 }
 
+/* Auto-grading outcomes highlighting */
+.correct-prediction {
+  border-color: var(--emerald) !important;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.15) !important;
+}
+
+.incorrect-prediction {
+  border-color: var(--crimson) !important;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.15) !important;
+}
