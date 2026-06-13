@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { calculateGroupStandings, getOfficialAdvancingTeams, calculateSecondChanceScore } from '../utils/standings';
+import combinationsData from '../utils/third_place_combinations.json';
 
 // Helper: 12 Groups setup with flags
 const INITIAL_GROUPS = {
@@ -605,8 +606,39 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
 
     // 8 Wildcard Third-places
     const selectedWildcards = predictions.third_place_advancers || [];
-    for (let i = 0; i < 8; i++) {
-      teams[`WC${i+1}`] = selectedWildcards[i] || null;
+    
+    // Find group letter for each selected wildcard team
+    const selectedWildcardGroupEntries = selectedWildcards.map(team => {
+      const groupLetter = Object.keys(INITIAL_GROUPS).find(g => {
+        const list = predictions.groups[g] || INITIAL_GROUPS[g].teams;
+        return list[2] === team; // 3rd place team
+      });
+      return { team, group: groupLetter };
+    }).filter(e => e.group);
+
+    if (selectedWildcardGroupEntries.length === 8) {
+      const qualifiedGroups = selectedWildcardGroupEntries.map(e => e.group);
+      qualifiedGroups.sort();
+      const lookupKey = qualifiedGroups.join('');
+      const mapping = combinationsData[lookupKey];
+      if (mapping) {
+        const winnerKeys = ['1A', '1B', '1D', '1E', '1G', '1I', '1K', '1L'];
+        winnerKeys.forEach(wKey => {
+          const oppGroup = mapping[wKey];
+          const oppTeamEntry = selectedWildcardGroupEntries.find(e => e.group === oppGroup);
+          teams[`OPP_${wKey}`] = oppTeamEntry ? oppTeamEntry.team : null;
+        });
+      } else {
+        const winnerKeys = ['1A', '1B', '1D', '1E', '1G', '1I', '1K', '1L'];
+        winnerKeys.forEach((wKey, idx) => {
+          teams[`OPP_${wKey}`] = selectedWildcards[idx] || null;
+        });
+      }
+    } else {
+      const winnerKeys = ['1A', '1B', '1D', '1E', '1G', '1I', '1K', '1L'];
+      winnerKeys.forEach((wKey, idx) => {
+        teams[`OPP_${wKey}`] = selectedWildcards[idx] || null;
+      });
     }
 
     return teams;
@@ -616,22 +648,22 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
 
   // Defines matches in Round of 32
   const r32Matches = [
-    { id: 'm1', teamAKey: '1A', teamBKey: 'WC1', date: 'June 28' },
-    { id: 'm2', teamAKey: '2B', teamBKey: '2C', date: 'June 28' },
-    { id: 'm3', teamAKey: '1B', teamBKey: 'WC2', date: 'June 29' },
-    { id: 'm4', teamAKey: '1C', teamBKey: '2D', date: 'June 29' },
-    { id: 'm5', teamAKey: '1D', teamBKey: 'WC3', date: 'June 29' },
-    { id: 'm6', teamAKey: '2E', teamBKey: '2F', date: 'June 30' },
-    { id: 'm7', teamAKey: '1E', teamBKey: 'WC4', date: 'June 30' },
-    { id: 'm8', teamAKey: '1F', teamBKey: '2A', date: 'June 30' },
-    { id: 'm9', teamAKey: '1G', teamBKey: 'WC5', date: 'July 1' },
-    { id: 'm10', teamAKey: '2H', teamBKey: '2I', date: 'July 1' },
-    { id: 'm11', teamAKey: '1H', teamBKey: 'WC6', date: 'July 1' },
-    { id: 'm12', teamAKey: '1I', teamBKey: '2J', date: 'July 2' },
-    { id: 'm13', teamAKey: '1J', teamBKey: 'WC7', date: 'July 2' },
-    { id: 'm14', teamAKey: '2K', teamBKey: '2L', date: 'July 2' },
-    { id: 'm15', teamAKey: '1K', teamBKey: 'WC8', date: 'July 3' },
-    { id: 'm16', teamAKey: '1L', teamBKey: '2G', date: 'July 3' }
+    { id: 'm1', teamAKey: '2A', teamBKey: '2B', date: 'June 28' },
+    { id: 'm2', teamAKey: '1E', teamBKey: 'OPP_1E', date: 'June 29' },
+    { id: 'm3', teamAKey: '1F', teamBKey: '2C', date: 'June 28' },
+    { id: 'm4', teamAKey: '1C', teamBKey: '2F', date: 'June 29' },
+    { id: 'm5', teamAKey: '1I', teamBKey: 'OPP_1I', date: 'July 2' },
+    { id: 'm6', teamAKey: '2E', teamBKey: '2I', date: 'June 30' },
+    { id: 'm7', teamAKey: '1A', teamBKey: 'OPP_1A', date: 'June 30' },
+    { id: 'm8', teamAKey: '1L', teamBKey: 'OPP_1L', date: 'July 1' },
+    { id: 'm9', teamAKey: '1D', teamBKey: 'OPP_1D', date: 'July 1' },
+    { id: 'm10', teamAKey: '1G', teamBKey: 'OPP_1G', date: 'July 1' },
+    { id: 'm11', teamAKey: '1B', teamBKey: 'OPP_1B', date: 'June 29' },
+    { id: 'm12', teamAKey: '2D', teamBKey: '2G', date: 'June 30' },
+    { id: 'm13', teamAKey: '1J', teamBKey: '2H', date: 'July 2' },
+    { id: 'm14', teamAKey: '1H', teamBKey: '2J', date: 'July 2' },
+    { id: 'm15', teamAKey: '1K', teamBKey: 'OPP_1K', date: 'July 3' },
+    { id: 'm16', teamAKey: '2K', teamBKey: '2L', date: 'July 3' }
   ];
 
   // Load team for specific match node based on propagation
@@ -647,14 +679,14 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
 
     if (stage === 'r16') {
       const sourceMap = {
-        m1: ['r32', 'm1', 'm2'],
-        m2: ['r32', 'm3', 'm4'],
-        m3: ['r32', 'm5', 'm6'],
-        m4: ['r32', 'm7', 'm8'],
-        m5: ['r32', 'm9', 'm10'],
-        m6: ['r32', 'm11', 'm12'],
-        m7: ['r32', 'm13', 'm14'],
-        m8: ['r32', 'm15', 'm16']
+        m1: ['r32', 'm1', 'm3'], // Winner Match 73 vs Winner Match 75
+        m2: ['r32', 'm2', 'm5'], // Winner Match 74 vs Winner Match 77
+        m3: ['r32', 'm4', 'm6'], // Winner Match 76 vs Winner Match 78
+        m4: ['r32', 'm7', 'm8'], // Winner Match 79 vs Winner Match 80
+        m5: ['r32', 'm9', 'm10'], // Winner Match 81 vs Winner Match 82
+        m6: ['r32', 'm11', 'm12'], // Winner Match 83 vs Winner Match 84
+        m7: ['r32', 'm13', 'm15'], // Winner Match 85 vs Winner Match 87
+        m8: ['r32', 'm14', 'm16']  // Winner Match 86 vs Winner Match 88
       };
       const [prevStage, mKeyA, mKeyB] = sourceMap[matchId];
       const teamA = getSelectedWinner(prevStage, mKeyA);

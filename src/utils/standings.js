@@ -1,3 +1,5 @@
+import combinationsData from './third_place_combinations.json';
+
 /**
  * Standing calculation and tiebreaker logic for Group Stage.
  * Matches official FIFA criteria where possible under prediction bracket constraints.
@@ -305,7 +307,8 @@ export function getOfficialAdvancingTeams(officialResults, groupMatchesList) {
   });
 
   // Slice top 8 best 3rd place teams
-  const bestThirdPlaces = thirdPlaceStats.slice(0, 8).map(s => s.team);
+  const qualifiedBestThirds = thirdPlaceStats.slice(0, 8);
+  const bestThirdPlaces = qualifiedBestThirds.map(s => s.team);
 
   // Build the 32 Round of 32 nodes mapping
   const r32Teams = {};
@@ -313,8 +316,30 @@ export function getOfficialAdvancingTeams(officialResults, groupMatchesList) {
     r32Teams[`1${g}`] = groups[g][0]; // Winner
     r32Teams[`2${g}`] = groups[g][1]; // Runner-up
   });
-  for (let i = 0; i < 8; i++) {
-    r32Teams[`WC${i+1}`] = bestThirdPlaces[i] || null;
+
+  const qualifiedGroups = qualifiedBestThirds.map(s => s.group);
+  if (qualifiedGroups.length === 8) {
+    qualifiedGroups.sort();
+    const lookupKey = qualifiedGroups.join('');
+    const mapping = combinationsData[lookupKey];
+    if (mapping) {
+      const winnerKeys = ['1A', '1B', '1D', '1E', '1G', '1I', '1K', '1L'];
+      winnerKeys.forEach(wKey => {
+        const oppGroup = mapping[wKey];
+        const oppTeamEntry = qualifiedBestThirds.find(s => s.group === oppGroup);
+        r32Teams[`OPP_${wKey}`] = oppTeamEntry ? oppTeamEntry.team : null;
+      });
+    } else {
+      const winnerKeys = ['1A', '1B', '1D', '1E', '1G', '1I', '1K', '1L'];
+      winnerKeys.forEach((wKey, idx) => {
+        r32Teams[`OPP_${wKey}`] = bestThirdPlaces[idx] || null;
+      });
+    }
+  } else {
+    const winnerKeys = ['1A', '1B', '1D', '1E', '1G', '1I', '1K', '1L'];
+    winnerKeys.forEach((wKey, idx) => {
+      r32Teams[`OPP_${wKey}`] = bestThirdPlaces[idx] || null;
+    });
   }
 
   return r32Teams;
