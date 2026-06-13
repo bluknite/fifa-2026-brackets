@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { calculateGroupStandings } from '../utils/standings';
 
 // Helper: 12 Groups setup with flags
 const INITIAL_GROUPS = {
@@ -16,6 +17,93 @@ const INITIAL_GROUPS = {
   K: { name: 'Group K', teams: ['Colombia', 'DR Congo', 'Portugal', 'Uzbekistan'], flags: ['🇨🇴', '🇨🇩', '🇵🇹', '🇺🇿'] },
   L: { name: 'Group L', teams: ['Croatia', 'England', 'Ghana', 'Panama'], flags: ['🇭🇷', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', '🇬🇭', '🇵🇦'] }
 };
+
+// Static Match Fixtures Schedule for Group Stage
+const GROUP_MATCHES = [
+  {"id": "A_m1", "group": "A", "home": "Mexico", "away": "South Africa", "date": "June 11"},
+  {"id": "A_m2", "group": "A", "home": "Korea Republic", "away": "Czechia", "date": "June 11"},
+  {"id": "A_m3", "group": "A", "home": "Czechia", "away": "South Africa", "date": "June 18"},
+  {"id": "A_m4", "group": "A", "home": "Mexico", "away": "Korea Republic", "date": "June 18"},
+  {"id": "A_m5", "group": "A", "home": "Czechia", "away": "Mexico", "date": "June 24"},
+  {"id": "A_m6", "group": "A", "home": "South Africa", "away": "Korea Republic", "date": "June 24"},
+
+  {"id": "B_m1", "group": "B", "home": "Canada", "away": "Bosnia and Herzegovina", "date": "June 12"},
+  {"id": "B_m2", "group": "B", "home": "Qatar", "away": "Switzerland", "date": "June 13"},
+  {"id": "B_m3", "group": "B", "home": "Switzerland", "away": "Bosnia and Herzegovina", "date": "June 18"},
+  {"id": "B_m4", "group": "B", "home": "Canada", "away": "Qatar", "date": "June 18"},
+  {"id": "B_m5", "group": "B", "home": "Switzerland", "away": "Canada", "date": "June 24"},
+  {"id": "B_m6", "group": "B", "home": "Bosnia and Herzegovina", "away": "Qatar", "date": "June 24"},
+
+  {"id": "C_m1", "group": "C", "home": "Brazil", "away": "Morocco", "date": "June 13"},
+  {"id": "C_m2", "group": "C", "home": "Haiti", "away": "Scotland", "date": "June 13"},
+  {"id": "C_m3", "group": "C", "home": "Scotland", "away": "Morocco", "date": "June 19"},
+  {"id": "C_m4", "group": "C", "home": "Brazil", "away": "Haiti", "date": "June 19"},
+  {"id": "C_m5", "group": "C", "home": "Scotland", "away": "Brazil", "date": "June 24"},
+  {"id": "C_m6", "group": "C", "home": "Morocco", "away": "Haiti", "date": "June 24"},
+
+  {"id": "D_m1", "group": "D", "home": "United States", "away": "Paraguay", "date": "June 12"},
+  {"id": "D_m2", "group": "D", "home": "Australia", "away": "Turkiye", "date": "June 13"},
+  {"id": "D_m3", "group": "D", "home": "United States", "away": "Australia", "date": "June 19"},
+  {"id": "D_m4", "group": "D", "home": "Turkiye", "away": "Paraguay", "date": "June 19"},
+  {"id": "D_m5", "group": "D", "home": "Turkiye", "away": "United States", "date": "June 25"},
+  {"id": "D_m6", "group": "D", "home": "Paraguay", "away": "Australia", "date": "June 25"},
+
+  {"id": "E_m1", "group": "E", "home": "Germany", "away": "Curacao", "date": "June 14"},
+  {"id": "E_m2", "group": "E", "home": "Ivory Coast", "away": "Ecuador", "date": "June 14"},
+  {"id": "E_m3", "group": "E", "home": "Germany", "away": "Ivory Coast", "date": "June 20"},
+  {"id": "E_m4", "group": "E", "home": "Ecuador", "away": "Curacao", "date": "June 20"},
+  {"id": "E_m5", "group": "E", "home": "Ecuador", "away": "Germany", "date": "June 25"},
+  {"id": "E_m6", "group": "E", "home": "Curacao", "away": "Ivory Coast", "date": "June 25"},
+
+  {"id": "F_m1", "group": "F", "home": "Netherlands", "away": "Japan", "date": "June 14"},
+  {"id": "F_m2", "group": "F", "home": "Sweden", "away": "Tunisia", "date": "June 14"},
+  {"id": "F_m3", "group": "F", "home": "Netherlands", "away": "Sweden", "date": "June 20"},
+  {"id": "F_m4", "group": "F", "home": "Tunisia", "away": "Japan", "date": "June 20"},
+  {"id": "F_m5", "group": "F", "home": "Japan", "away": "Sweden", "date": "June 25"},
+  {"id": "F_m6", "group": "F", "home": "Tunisia", "away": "Netherlands", "date": "June 25"},
+
+  {"id": "G_m1", "group": "G", "home": "Belgium", "away": "Egypt", "date": "June 15"},
+  {"id": "G_m2", "group": "G", "home": "Iran", "away": "New Zealand", "date": "June 15"},
+  {"id": "G_m3", "group": "G", "home": "Belgium", "away": "Iran", "date": "June 21"},
+  {"id": "G_m4", "group": "G", "home": "New Zealand", "away": "Egypt", "date": "June 21"},
+  {"id": "G_m5", "group": "G", "home": "Egypt", "away": "Iran", "date": "June 26"},
+  {"id": "G_m6", "group": "G", "home": "New Zealand", "away": "Belgium", "date": "June 26"},
+
+  {"id": "H_m1", "group": "H", "home": "Spain", "away": "Cape Verde", "date": "June 15"},
+  {"id": "H_m2", "group": "H", "home": "Saudi Arabia", "away": "Uruguay", "date": "June 15"},
+  {"id": "H_m3", "group": "H", "home": "Spain", "away": "Saudi Arabia", "date": "June 21"},
+  {"id": "H_m4", "group": "H", "home": "Uruguay", "away": "Cape Verde", "date": "June 21"},
+  {"id": "H_m5", "group": "H", "home": "Cape Verde", "away": "Saudi Arabia", "date": "June 26"},
+  {"id": "H_m6", "group": "H", "home": "Uruguay", "away": "Spain", "date": "June 26"},
+
+  {"id": "I_m1", "group": "I", "home": "France", "away": "Senegal", "date": "June 16"},
+  {"id": "I_m2", "group": "I", "home": "Iraq", "away": "Norway", "date": "June 16"},
+  {"id": "I_m3", "group": "I", "home": "France", "away": "Iraq", "date": "June 22"},
+  {"id": "I_m4", "group": "I", "home": "Norway", "away": "Senegal", "date": "June 22"},
+  {"id": "I_m5", "group": "I", "home": "Norway", "away": "France", "date": "June 26"},
+  {"id": "I_m6", "group": "I", "home": "Senegal", "away": "Iraq", "date": "June 26"},
+
+  {"id": "J_m1", "group": "J", "home": "Argentina", "away": "Algeria", "date": "June 16"},
+  {"id": "J_m2", "group": "J", "home": "Austria", "away": "Jordan", "date": "June 16"},
+  {"id": "J_m3", "group": "J", "home": "Argentina", "away": "Austria", "date": "June 22"},
+  {"id": "J_m4", "group": "J", "home": "Jordan", "away": "Algeria", "date": "June 22"},
+  {"id": "J_m5", "group": "J", "home": "Algeria", "away": "Austria", "date": "June 27"},
+  {"id": "J_m6", "group": "J", "home": "Jordan", "away": "Argentina", "date": "June 27"},
+
+  {"id": "K_m1", "group": "K", "home": "Portugal", "away": "DR Congo", "date": "June 17"},
+  {"id": "K_m2", "group": "K", "home": "Uzbekistan", "away": "Colombia", "date": "June 17"},
+  {"id": "K_m3", "group": "K", "home": "Portugal", "away": "Uzbekistan", "date": "June 23"},
+  {"id": "K_m4", "group": "K", "home": "Colombia", "away": "DR Congo", "date": "June 23"},
+  {"id": "K_m5", "group": "K", "home": "Colombia", "away": "Portugal", "date": "June 27"},
+  {"id": "K_m6", "group": "K", "home": "DR Congo", "away": "Uzbekistan", "date": "June 27"},
+
+  {"id": "L_m1", "group": "L", "home": "England", "away": "Croatia", "date": "June 17"},
+  {"id": "L_m2", "group": "L", "home": "Ghana", "away": "Panama", "date": "June 17"},
+  {"id": "L_m3", "group": "L", "home": "England", "away": "Ghana", "date": "June 23"},
+  {"id": "L_m4", "group": "L", "home": "Panama", "away": "Croatia", "date": "June 23"},
+  {"id": "L_m5", "group": "L", "home": "Panama", "away": "England", "date": "June 27"},
+  {"id": "L_m6", "group": "L", "home": "Croatia", "away": "Ghana", "date": "June 27"}
+];
 
 // Helper: map a team name to its flag emoji
 export const getTeamFlag = (teamName) => {
@@ -39,11 +127,12 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
   // Load predictions state from bracket prop or set defaults
   useEffect(() => {
     if (bracket?.predictions) {
-      // Deep clone predictions to avoid direct prop mutation
       const cloned = JSON.parse(JSON.stringify(bracket.predictions));
       
-      // Ensure all groups exist in state, defaulting to initial setup if missing
+      // Ensure groupMatches and groups structures exist
+      if (!cloned.groupMatches) cloned.groupMatches = {};
       if (!cloned.groups) cloned.groups = {};
+
       Object.keys(INITIAL_GROUPS).forEach(g => {
         if (!cloned.groups[g] || cloned.groups[g].length === 0) {
           cloned.groups[g] = [...INITIAL_GROUPS[g].teams];
@@ -68,30 +157,34 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
     return <div style={{ textAlign: 'center', padding: '2rem' }}>Formatting predictions...</div>;
   }
 
-  // --- Group Stage Reordering ---
-  const moveTeam = (groupKey, index, direction) => {
+  // --- Group Stage Match Predict Event handler ---
+  const handleMatchPredict = (groupKey, matchId, outcome) => {
     if (isLocked) return;
-    
-    // Check if group is already locked/completed in official results
+
+    // Check if group is already completed in official results
     if (officialResults?.completed_games?.includes(`group_${groupKey}`)) {
-      return; // Cannot edit completed group
+      return;
     }
 
-    const groupTeams = [...predictions.groups[groupKey]];
-    const targetIndex = index + direction;
-    
-    if (targetIndex < 0 || targetIndex >= groupTeams.length) return;
+    const updatedMatches = {
+      ...predictions.groupMatches,
+      [matchId]: outcome
+    };
 
-    // Swap teams
-    const temp = groupTeams[index];
-    groupTeams[index] = groupTeams[targetIndex];
-    groupTeams[targetIndex] = temp;
+    const groupTeams = INITIAL_GROUPS[groupKey].teams;
+    const groupMatchesList = GROUP_MATCHES.filter(m => m.group === groupKey);
+    const currentOrder = predictions.groups[groupKey] || [...groupTeams];
+
+    // Compute live standings and respect manual override orders
+    const { standings } = calculateGroupStandings(groupTeams, groupMatchesList, updatedMatches, currentOrder);
+    const newOrder = standings.map(s => s.team);
 
     const updated = {
       ...predictions,
+      groupMatches: updatedMatches,
       groups: {
         ...predictions.groups,
-        [groupKey]: groupTeams
+        [groupKey]: newOrder
       }
     };
 
@@ -103,11 +196,50 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
     setPredictions(updated);
   };
 
+  // --- Swap ambiguous tied teams rank control ---
+  const swapAmbiguousTeams = (groupKey, index, direction) => {
+    if (isLocked) return;
+    if (officialResults?.completed_games?.includes(`group_${groupKey}`)) return;
+
+    const groupTeams = INITIAL_GROUPS[groupKey].teams;
+    const groupMatchesList = GROUP_MATCHES.filter(m => m.group === groupKey);
+    const currentOrder = [...(predictions.groups[groupKey] || groupTeams)];
+
+    const { ambiguousTies } = calculateGroupStandings(groupTeams, groupMatchesList, predictions.groupMatches || {}, currentOrder);
+
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= currentOrder.length) return;
+
+    const teamA = currentOrder[index];
+    const teamB = currentOrder[targetIndex];
+
+    // Swap is ONLY allowed if both teams are tied and H2H is ambiguous/equal
+    if (ambiguousTies.includes(teamA) && ambiguousTies.includes(teamB)) {
+      currentOrder[index] = teamB;
+      currentOrder[targetIndex] = teamA;
+
+      const updated = {
+        ...predictions,
+        groups: {
+          ...predictions.groups,
+          [groupKey]: currentOrder
+        }
+      };
+
+      // Auto-update third place eligibility list
+      const thirdPlaces = getThirdPlaceTeams(updated.groups);
+      const validThirdPlaces = updated.third_place_advancers.filter(team => thirdPlaces.includes(team));
+      updated.third_place_advancers = validThirdPlaces;
+
+      setPredictions(updated);
+    }
+  };
+
   // Get current 3rd place teams list from current predictions
   const getThirdPlaceTeams = (groupsState) => {
     return Object.keys(INITIAL_GROUPS).map(g => {
       const list = groupsState[g] || INITIAL_GROUPS[g].teams;
-      return list[2]; // index 2 is 3rd place
+      return list[2]; // Index 2 is 3rd place
     });
   };
 
@@ -129,7 +261,6 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
   };
 
   // --- Knockouts Logic ---
-  // Calculates the 32 teams advancing to R32 based on current group predictions
   const calculateR32Teams = () => {
     const teams = {};
     
@@ -141,7 +272,6 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
     });
 
     // 8 Wildcard Third-places
-    // We map them based on the selections (W1 to W8)
     const selectedWildcards = predictions.third_place_advancers || [];
     for (let i = 0; i < 8; i++) {
       teams[`WC${i+1}`] = selectedWildcards[i] || null;
@@ -174,7 +304,6 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
 
   // Load team for specific match node based on propagation
   const getMatchTeams = (stage, matchId) => {
-    // Override with official outcome if completed
     const officialWinner = officialResults?.knockouts?.[stage]?.[matchId];
 
     if (stage === 'r32') {
@@ -241,7 +370,6 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
   };
 
   const getSelectedWinner = (stage, matchId) => {
-    // If official result exists, use it as forced input
     if (officialResults?.knockouts?.[stage]?.[matchId]) {
       return officialResults.knockouts[stage][matchId];
     }
@@ -249,7 +377,6 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
   };
 
   const getSelectedLoser = (stage, matchId) => {
-    // If official result exists, determine the loser
     const officialWin = officialResults?.knockouts?.[stage]?.[matchId];
     const { teamA, teamB } = getMatchTeams(stage, matchId);
     
@@ -266,7 +393,6 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
   const selectWinner = (stage, matchId, teamName) => {
     if (isLocked || !teamName) return;
 
-    // Check if specific match is completed officials
     if (officialResults?.completed_games?.includes(`${stage}_${matchId}`)) {
       return; // Locked
     }
@@ -281,12 +407,10 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
       updated.knockouts[stage][matchId] = teamName;
     }
 
-    // Clean up future rounds if the loser of this choice was previously selected further up the tree
+    // Clean up future rounds if the loser of this choice was previously selected further up
     const cleanUpTree = (clearedTeam) => {
       if (!clearedTeam) return;
-      
       const k = updated.knockouts;
-      // Loop through all stages and matches and wipe out references to the cleared team
       const stages = ['r16', 'qf', 'sf'];
       stages.forEach(st => {
         Object.keys(k[st] || {}).forEach(mId => {
@@ -310,13 +434,20 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
       setSaving(true);
       setSaveStatus(null);
 
-      // Default completed games to official outcome in user predictions just to align values
       const aligned = JSON.parse(JSON.stringify(predictions));
       
-      // Auto-align any completed group standings in predictions to official results
+      // Auto-align any completed group standings/outcomes in predictions to official results
       Object.keys(INITIAL_GROUPS).forEach(g => {
         if (officialResults?.completed_games?.includes(`group_${g}`)) {
           aligned.groups[g] = [...officialResults.groups[g]];
+        }
+      });
+
+      // Align completed group matches
+      GROUP_MATCHES.forEach(m => {
+        const actual = officialResults?.actual_matches?.[m.id];
+        if (actual && actual.completed) {
+          aligned.groupMatches[m.id] = actual.outcome;
         }
       });
 
@@ -365,7 +496,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
       <div className="editor-header">
         <div>
           <h2 style={{ fontSize: '1.6rem' }}>Tournament Predictor</h2>
-          <p style={{ color: 'var(--text-secondary)' }}>Configure group rankings and click winners to advance them through the bracket.</p>
+          <p style={{ color: 'var(--text-secondary)' }}>Predict match outcomes and manually resolve standings ties to construct your bracket.</p>
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
@@ -456,75 +587,205 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
           </div>
 
           {/* Groups Grid */}
-          <div className="groups-grid">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
             {Object.keys(INITIAL_GROUPS).map((groupKey) => {
               const group = INITIAL_GROUPS[groupKey];
-              const userList = predictions.groups[groupKey] || group.teams;
+              const groupMatchesList = GROUP_MATCHES.filter(m => m.group === groupKey);
+              
+              // Calculate live standings order
+              const { standings, isAmbiguous, ambiguousTies } = calculateGroupStandings(
+                group.teams,
+                groupMatchesList,
+                predictions.groupMatches || {},
+                predictions.groups[groupKey]
+              );
+              
               const isGroupCompleted = officialResults?.completed_games?.includes(`group_${groupKey}`);
 
               return (
-                <div key={groupKey} className={`glass-card group-card ${isGroupCompleted ? 'glowing' : ''}`} style={isGroupCompleted ? { borderColor: 'var(--emerald)' } : {}}>
-                  <div className="group-header">
-                    <span className="group-title">{group.name}</span>
-                    {isGroupCompleted ? (
-                      <span className="status-badge status-submitted" style={{ fontSize: '0.65rem' }}>Official Standings</span>
-                    ) : (
-                      <span className="group-badge">Predicting</span>
-                    )}
-                  </div>
+                <div key={groupKey} className="glass-card group-editor-row" style={{ padding: '1.5rem', display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2rem', flexWrap: 'wrap' }}>
                   
-                  <div className="group-team-list">
-                    {userList.map((team, index) => {
-                      // Determine status badge (1st/2nd advance, 3rd wildcard, 4th out)
-                      let rankClass = 'rank-elim-4';
-                      let rankLabel = '4th';
-                      if (index === 0) {
-                        rankClass = 'rank-adv-1';
-                        rankLabel = '1st';
-                      } else if (index === 1) {
-                        rankClass = 'rank-adv-2';
-                        rankLabel = '2nd';
-                      } else if (index === 2) {
-                        const isAdvancingWildcard = predictions.third_place_advancers?.includes(team);
-                        rankClass = isAdvancingWildcard ? 'rank-adv-2' : 'rank-elim-3';
-                        rankLabel = isAdvancingWildcard ? '3rd (Q)' : '3rd';
-                        if (isAdvancingWildcard) rankClass += ' style-wildcard'; // customize
-                      }
+                  {/* Left Side: Match Outcomes List */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                      <strong style={{ fontSize: '1.2rem', color: 'var(--emerald)' }}>{group.name} Matches</strong>
+                      {isGroupCompleted && (
+                        <span className="status-badge status-submitted" style={{ fontSize: '0.65rem' }}>Group Standings Finalised</span>
+                      )}
+                    </div>
 
-                      return (
-                        <div key={team} className="group-team-row">
-                          <div className="team-info">
-                            <span className={`team-rank-indicator ${rankClass}`}>
-                              {rankLabel}
-                            </span>
-                            <span className="team-flag">{getTeamFlag(team)}</span>
-                            <span className="team-name">{team}</span>
-                          </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {groupMatchesList.map(m => {
+                        // Check if match was completed officially
+                        const actualMatch = officialResults?.actual_matches?.[m.id];
+                        const isCompleted = actualMatch && actualMatch.completed;
+                        const matchOutcome = isCompleted ? actualMatch.outcome : (predictions.groupMatches?.[m.id] || null);
 
-                          {!isLocked && !isGroupCompleted && (
-                            <div className="rank-controls">
-                              <button 
-                                className="rank-btn" 
-                                onClick={() => moveTeam(groupKey, index, -1)}
-                                disabled={index === 0}
-                                title="Move Up"
-                              >
-                                ▲
-                              </button>
-                              <button 
-                                className="rank-btn" 
-                                onClick={() => moveTeam(groupKey, index, 1)}
-                                disabled={index === 3}
-                                title="Move Down"
-                              >
-                                ▼
-                              </button>
+                        return (
+                          <div key={m.id} className="match-predict-row">
+                            <div className="match-info-col">
+                              <span className="match-fixture-lbl">Fixture ({m.date})</span>
+                              {isCompleted && (
+                                <span className="match-actual-score-lbl">
+                                  Actual Score: {actualMatch.homeGoals} - {actualMatch.awayGoals} (Locked)
+                                </span>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
+
+                            <div className="match-selector-wrapper">
+                              {/* Home Team (Clickable Name + Flag Button) */}
+                              <div 
+                                className="team-selector-side home clickable"
+                                onClick={() => {
+                                  if (!(isLocked || isGroupCompleted || isCompleted)) {
+                                    handleMatchPredict(groupKey, m.id, 'home');
+                                  }
+                                }}
+                                title={`${m.home} Win`}
+                              >
+                                <span className="team-selector-name">{m.home}</span>
+                                <button 
+                                  className={`flag-predict-btn ${matchOutcome === 'home' ? 'active home-win' : ''}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMatchPredict(groupKey, m.id, 'home');
+                                  }}
+                                  disabled={isLocked || isGroupCompleted || isCompleted}
+                                >
+                                  {getTeamFlag(m.home)}
+                                </button>
+                              </div>
+
+                              {/* Draw Button */}
+                              <button 
+                                className={`draw-predict-btn ${matchOutcome === 'draw' ? 'active draw-win' : ''}`}
+                                onClick={() => handleMatchPredict(groupKey, m.id, 'draw')}
+                                disabled={isLocked || isGroupCompleted || isCompleted}
+                                title="Draw"
+                              >
+                                Draw
+                              </button>
+
+                              {/* Away Team (Clickable Flag Button + Name) */}
+                              <div 
+                                className="team-selector-side away clickable"
+                                onClick={() => {
+                                  if (!(isLocked || isGroupCompleted || isCompleted)) {
+                                    handleMatchPredict(groupKey, m.id, 'away');
+                                  }
+                                }}
+                                title={`${m.away} Win`}
+                              >
+                                <button 
+                                  className={`flag-predict-btn ${matchOutcome === 'away' ? 'active away-win' : ''}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMatchPredict(groupKey, m.id, 'away');
+                                  }}
+                                  disabled={isLocked || isGroupCompleted || isCompleted}
+                                >
+                                  {getTeamFlag(m.away)}
+                                </button>
+                                <span className="team-selector-name">{m.away}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
+
+                  {/* Right Side: Standings Tally */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                      <strong style={{ fontSize: '1.2rem', color: 'var(--azure)' }}>Standing Calculator</strong>
+                      {isAmbiguous && !isGroupCompleted && (
+                        <span className="unresolved-badge" style={{ animation: 'pulse 1.5s infinite' }}>Ties Require Manual Order</span>
+                      )}
+                    </div>
+
+                    <div className="standings-table-container">
+                      <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse', textAlign: 'left' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-muted)' }}>
+                            <th style={{ padding: '0.4rem 0.25rem' }}>Pos</th>
+                            <th>Team</th>
+                            <th style={{ textAlign: 'center' }}>P</th>
+                            <th style={{ textAlign: 'center' }}>W</th>
+                            <th style={{ textAlign: 'center' }}>D</th>
+                            <th style={{ textAlign: 'center' }}>L</th>
+                            <th style={{ textAlign: 'right', paddingRight: '0.5rem' }}>Pts</th>
+                            {!isLocked && !isGroupCompleted && <th style={{ width: '50px' }}>Adjust</th>}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {standings.map((s, idx) => {
+                            let rankClass = 'rank-elim-4';
+                            let rankLabel = '4th';
+                            if (idx === 0) {
+                              rankClass = 'rank-adv-1';
+                              rankLabel = '1st';
+                            } else if (idx === 1) {
+                              rankClass = 'rank-adv-2';
+                              rankLabel = '2nd';
+                            } else if (idx === 2) {
+                              const isAdvancingWildcard = predictions.third_place_advancers?.includes(s.team);
+                              rankClass = isAdvancingWildcard ? 'rank-adv-2 style-wildcard' : 'rank-elim-3';
+                              rankLabel = isAdvancingWildcard ? '3rd (Q)' : '3rd';
+                            }
+
+                            const canSwapUp = idx > 0 && ambiguousTies.includes(s.team) && ambiguousTies.includes(standings[idx - 1].team);
+                            const canSwapDown = idx < 3 && ambiguousTies.includes(s.team) && ambiguousTies.includes(standings[idx + 1].team);
+
+                            return (
+                              <tr key={s.team} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', background: s.isTied && !isGroupCompleted ? 'rgba(59, 130, 246, 0.03)' : 'transparent' }}>
+                                <td style={{ padding: '0.5rem 0.25rem' }}>
+                                  <span className={`team-rank-indicator ${rankClass}`} style={{ transform: 'scale(0.85)', transformOrigin: 'left' }}>
+                                    {rankLabel}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span style={{ fontSize: '1rem', marginRight: '0.25rem' }}>{getTeamFlag(s.team)}</span>
+                                  <span style={{ fontWeight: 600 }}>{s.team}</span>
+                                  {s.isTied && !isGroupCompleted && (
+                                    <span style={{ fontSize: '0.65rem', color: 'var(--azure)', display: 'block', fontStyle: 'italic' }}>Tied H2H</span>
+                                  )}
+                                </td>
+                                <td style={{ textAlign: 'center' }}>{s.played}</td>
+                                <td style={{ textAlign: 'center' }}>{s.won}</td>
+                                <td style={{ textAlign: 'center' }}>{s.drawn}</td>
+                                <td style={{ textAlign: 'center' }}>{s.lost}</td>
+                                <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: '0.5rem', color: 'var(--emerald)' }}>{s.points}</td>
+                                {!isLocked && !isGroupCompleted && (
+                                  <td style={{ display: 'flex', gap: '0.2rem', padding: '0.5rem 0' }}>
+                                    <button 
+                                      className="rank-btn" 
+                                      onClick={() => swapAmbiguousTeams(groupKey, idx, -1)}
+                                      disabled={!canSwapUp}
+                                      title="Swap Rank Up"
+                                      style={{ padding: '0.1rem 0.25rem', fontSize: '0.65rem' }}
+                                    >
+                                      ▲
+                                    </button>
+                                    <button 
+                                      className="rank-btn" 
+                                      onClick={() => swapAmbiguousTeams(groupKey, idx, 1)}
+                                      disabled={!canSwapDown}
+                                      title="Swap Rank Down"
+                                      style={{ padding: '0.1rem 0.25rem', fontSize: '0.65rem' }}
+                                    >
+                                      ▼
+                                    </button>
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
                 </div>
               );
             })}

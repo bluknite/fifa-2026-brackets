@@ -960,3 +960,178 @@ a:hover {
   border-radius: 6px;
   border: 1px solid hsla(350, 89%, 60%, 0.2);
 }
+
+/* Group Match Outcome Predictor Styling */
+.match-predict-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: hsla(222, 47%, 10%, 0.45);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  gap: 1rem;
+  transition: var(--transition-fast);
+}
+
+.match-predict-row:hover {
+  background: hsla(222, 47%, 14%, 0.6);
+  border-color: var(--border-light-hover);
+}
+
+.match-info-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.match-fixture-lbl {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.match-actual-score-lbl {
+  font-size: 0.7rem;
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.match-selector-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.team-selector-side {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.team-selector-name {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flag-predict-btn {
+  font-size: 1.5rem;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-light);
+  background: hsla(222, 47%, 15%, 0.6);
+  cursor: pointer;
+  transition: var(--transition-normal);
+  line-height: 1;
+}
+
+.flag-predict-btn:hover:not(:disabled) {
+  background: hsla(222, 47%, 22%, 0.85);
+  border-color: var(--border-light-hover);
+  transform: scale(1.1);
+}
+
+.flag-predict-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Active Home Team prediction selection styling */
+.flag-predict-btn.active.home-win {
+  background: hsla(142, 72%, 45%, 0.2);
+  border-color: var(--emerald);
+  box-shadow: 0 0 12px var(--emerald-glow);
+  transform: scale(1.05);
+}
+
+/* Active Away Team prediction selection styling */
+.flag-predict-btn.active.away-win {
+  background: hsla(142, 72%, 45%, 0.2);
+  border-color: var(--emerald);
+  box-shadow: 0 0 12px var(--emerald-glow);
+  transform: scale(1.05);
+}
+
+.draw-predict-btn {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0 0.8rem;
+  height: 42px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: hsla(222, 47%, 15%, 0.6);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition-normal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.draw-predict-btn:hover:not(:disabled) {
+  background: hsla(222, 47%, 22%, 0.85);
+  border-color: var(--border-light-hover);
+  color: var(--text-primary);
+}
+
+.draw-predict-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.draw-predict-btn.active.draw-win {
+  background: hsla(217, 91%, 60%, 0.2);
+  border-color: var(--azure);
+  color: var(--text-primary);
+  box-shadow: 0 0 12px hsla(217, 91%, 60%, 0.25);
+}
+
+/* Make team names clickable to select that team */
+.team-selector-side.clickable {
+  cursor: pointer;
+}
+
+.team-selector-side.clickable:hover .team-selector-name {
+  color: var(--text-primary);
+}
+
+/* Responsive override for group stage layout */
+@media (max-width: 992px) {
+  .group-editor-row {
+    grid-template-columns: 1fr !important;
+    gap: 1.5rem !important;
+  }
+}
+
+@media (max-width: 576px) {
+  .match-predict-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  .match-info-col {
+    text-align: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 0.5rem;
+  }
+  .match-selector-wrapper {
+    justify-content: center;
+  }
+  .team-selector-name {
+    max-width: 80px;
+  }
+}
+

@@ -6,12 +6,13 @@ export default function Dashboard({ profile, bracket, tournamentResults, onNavig
   const isSubmitted = bracket?.is_submitted || false;
   const score = bracket?.score || 0;
 
-  // Simple statistics count
+  // Count matches outcome predictions
   const countGroupPicks = () => {
-    if (!bracket?.predictions?.groups) return 0;
-    return Object.values(bracket.predictions.groups).reduce((acc, curr) => acc + (curr ? curr.length : 0), 0);
+    if (!bracket?.predictions?.groupMatches) return 0;
+    return Object.values(bracket.predictions.groupMatches).filter(Boolean).length;
   };
 
+  // Count knockout picks
   const countKnockoutPicks = () => {
     if (!bracket?.predictions?.knockouts) return 0;
     const { r32, r16, qf, sf, final, third_place } = bracket.predictions.knockouts;
@@ -27,9 +28,12 @@ export default function Dashboard({ profile, bracket, tournamentResults, onNavig
 
   const groupPicksCount = countGroupPicks();
   const knockoutPicksCount = countKnockoutPicks();
-  const totalPicksPossible = 48 + 16 + 8 + 4 + 2 + 1 + 1; // 48 group stage team list ranks, plus knockout matches
-  const totalPicksMade = groupPicksCount + knockoutPicksCount;
-  const completionPercentage = Math.round((totalPicksMade / 80) * 100); // 12 groups * 4 teams = 48 items, 16 R32 games, 8 R16, 4 QF, 2 SF, 1 F, 1 Third-place = 80 choices total.
+  const wildcardPicksCount = bracket?.predictions?.third_place_advancers?.length || 0;
+
+  // 72 group stage matches, 8 third-place selectors, 16 R32, 8 R16, 4 QF, 2 SF, 1 F, 1 Third-place = 112 choices total.
+  const totalPicksPossible = 72 + 8 + 16 + 8 + 4 + 2 + 1 + 1; 
+  const totalPicksMade = groupPicksCount + wildcardPicksCount + knockoutPicksCount;
+  const completionPercentage = Math.round((totalPicksMade / totalPicksPossible) * 100);
 
   return (
     <div className="dashboard-grid">
@@ -105,6 +109,10 @@ export default function Dashboard({ profile, bracket, tournamentResults, onNavig
         <div className="glass-card stats-card">
           <h3>Tournament Scoring Rules</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.75rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', borderBottom: '1px dashed rgba(255,255,255,0.05)', paddingBottom: '0.35rem' }}>
+              <span>Correct match prediction</span>
+              <strong style={{ color: 'var(--emerald)' }}>+5 pts</strong>
+            </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', borderBottom: '1px dashed rgba(255,255,255,0.05)', paddingBottom: '0.35rem' }}>
               <span>Correct advancing Group team</span>
               <strong style={{ color: 'var(--emerald)' }}>+10 pts</strong>
