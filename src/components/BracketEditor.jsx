@@ -883,42 +883,6 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
           {bracketType === 'primary' && activeSubTab === 'groups' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           
-          {/* Third Places Wildcard Selector */}
-          <div className="glass-card third-places-card">
-            <h3>
-              <span>🎯</span> 
-              Select 8 Advancing Third-Place Teams ({selectedThirdPlacesCount}/8)
-            </h3>
-            <p>
-              Under the 48-team expansion, the 8 best third-placed teams across the 12 groups advance to the Round of 32. Select exactly 8 teams from your predicted 3rd-place finishers to fill the wildcard slots.
-            </p>
-            <div className="third-places-grid">
-              {getThirdPlaceList.map((team, idx) => {
-                const groupLetter = Object.keys(INITIAL_GROUPS)[idx];
-                const isSelected = predictions.third_place_advancers?.includes(team);
-                return (
-                  <div 
-                    key={team}
-                    className={`third-place-select-row ${isSelected ? 'selected' : ''}`}
-                    onClick={() => handleThirdPlaceSelect(team)}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>G{groupLetter}</span>
-                      <span>{getTeamFlag(team)}</span>
-                      <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{team}</span>
-                    </div>
-                    <div className="checkbox-custom"></div>
-                  </div>
-                );
-              })}
-            </div>
-            {selectedThirdPlacesCount !== 8 && (
-              <div style={{ color: 'var(--azure)', fontSize: '0.8rem', fontWeight: 600, marginTop: '0.75rem' }}>
-                * You must select exactly 8 teams to complete your knockout bracket entry.
-              </div>
-            )}
-          </div>
-
           {/* Groups Grid */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
             {Object.keys(INITIAL_GROUPS).map((groupKey) => {
@@ -1136,6 +1100,42 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                 </div>
               );
             })}
+          </div>
+
+          {/* Third Places Wildcard Selector */}
+          <div className="glass-card third-places-card">
+            <h3>
+              <span>🎯</span> 
+              Select 8 Advancing Third-Place Teams ({selectedThirdPlacesCount}/8)
+            </h3>
+            <p>
+              Under the 48-team expansion, the 8 best third-placed teams across the 12 groups advance to the Round of 32. Select exactly 8 teams from your predicted 3rd-place finishers to fill the wildcard slots.
+            </p>
+            <div className="third-places-grid">
+              {getThirdPlaceList.map((team, idx) => {
+                const groupLetter = Object.keys(INITIAL_GROUPS)[idx];
+                const isSelected = predictions.third_place_advancers?.includes(team);
+                return (
+                  <div 
+                    key={team}
+                    className={`third-place-select-row ${isSelected ? 'selected' : ''}`}
+                    onClick={() => handleThirdPlaceSelect(team)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>G{groupLetter}</span>
+                      <span>{getTeamFlag(team)}</span>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{team}</span>
+                    </div>
+                    <div className="checkbox-custom"></div>
+                  </div>
+                );
+              })}
+            </div>
+            {selectedThirdPlacesCount !== 8 && (
+              <div style={{ color: 'var(--azure)', fontSize: '0.8rem', fontWeight: 600, marginTop: '0.75rem' }}>
+                * You must select exactly 8 teams to complete your knockout bracket entry.
+              </div>
+            )}
           </div>
         </div>
       )}
