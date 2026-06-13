@@ -83,7 +83,7 @@ export default function Dashboard({ profile, bracket, tournamentResults, onNavig
             </div>
           ) : (
             <div className="info-box">
-              ⚽ You can edit your bracket anytime. Remember to click <strong>Save Bracket</strong> in the editor when you are done! Completed games will automatically lock to their official outcomes.
+              ⚽ Any changes you make to your predictions are saved automatically! Completed games will automatically lock to their official outcomes.
             </div>
           )}
 
