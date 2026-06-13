@@ -177,7 +177,8 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
   const allTeamsList = Object.values(INITIAL_GROUPS).flat();
 
   // Scoring function: grades user predictions against official results
-  const calculateScore = (userPredictions, official) => {
+  const calculateScore = (userPredictions, official, isLockedVal) => {
+    if (!isLockedVal) return 0;
     let score = 0;
 
     // 1. Group Stage Match predictions: +5 pts each
@@ -260,8 +261,23 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
 
       if (error) throw error;
 
+      // Recalculate user brackets scores with the new lock state
+      const { data: brackets, error: bracketsError } = await supabase
+        .from('brackets')
+        .select('*');
+      if (bracketsError) throw bracketsError;
+
+      const updates = brackets.map(b => {
+        const newScore = calculateScore(b.predictions, localResults, newLockState);
+        return supabase
+          .from('brackets')
+          .update({ score: newScore })
+          .eq('id', b.id);
+      });
+      await Promise.all(updates);
+
       setIsLocked(newLockState);
-      setStatusMsg({ type: 'success', message: `Bracket submissions are now ${newLockState ? 'LOCKED' : 'OPEN'}!` });
+      setStatusMsg({ type: 'success', message: `Bracket submissions are now ${newLockState ? 'LOCKED' : 'OPEN'}! User scores recalculated.` });
       onResultsUpdated();
     } catch (err) {
       console.error(err);
@@ -551,7 +567,7 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
       if (bracketsError) throw bracketsError;
 
       const updates = brackets.map(b => {
-        const newScore = calculateScore(b.predictions, results);
+        const newScore = calculateScore(b.predictions, results, isLocked);
         return supabase
           .from('brackets')
           .update({ score: newScore })

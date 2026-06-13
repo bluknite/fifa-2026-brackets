@@ -207,7 +207,8 @@ function calculateActualStandings(teams, matches, scores) {
 }
 
 // Grades a single user bracket predictions against official results
-function calculateScore(userPredictions, official) {
+function calculateScore(userPredictions, official, isLockedVal) {
+  if (!isLockedVal) return 0;
   let score = 0;
 
   // 1. Group Stage Match Outcome Predictions: +5 pts each
@@ -485,7 +486,7 @@ async function run() {
   }
 
   const updates = brackets.map(b => {
-    const newScore = calculateScore(b.predictions, results);
+    const newScore = calculateScore(b.predictions, results, dbResults?.is_locked);
     return supabase
       .from('brackets')
       .update({ score: newScore })

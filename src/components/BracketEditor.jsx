@@ -123,7 +123,8 @@ export const getThirdPlaceTeams = (groupsState) => {
   });
 };
 
-export const calculateScore = (userPredictions, official) => {
+export const calculateScore = (userPredictions, official, isLockedVal) => {
+  if (!isLockedVal) return 0;
   let score = 0;
 
   // 1. Group Stage Match predictions: +5 pts each
@@ -339,7 +340,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
           }
         }
 
-        const calculatedScore = calculateScore(aligned, officialResults);
+        const calculatedScore = calculateScore(aligned, officialResults, isLocked);
         const { error } = await supabase
           .from('brackets')
           .update({
