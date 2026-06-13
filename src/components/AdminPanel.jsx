@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { getTeamFlag } from './BracketEditor';
+import { calculateSecondChanceScore } from '../utils/standings';
 
 const INITIAL_GROUPS = {
   A: ['Mexico', 'South Africa', 'Korea Republic', 'Czechia'],
@@ -158,14 +159,19 @@ const calculateStandingsLocal = (teams, matches, scores) => {
 export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
   const [localResults, setLocalResults] = useState(null);
   const [isLocked, setIsLocked] = useState(false);
+  const [isSecondChanceLocked, setIsSecondChanceLocked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState(null);
   const [selectedGroupOverride, setSelectedGroupOverride] = useState('A');
 
   useEffect(() => {
     if (tournamentResults) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocalResults(JSON.parse(JSON.stringify(tournamentResults.results || {})));
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLocked(tournamentResults.is_locked || false);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsSecondChanceLocked(tournamentResults.is_second_chance_locked || false);
     }
   }, [tournamentResults]);
 
@@ -174,7 +180,6 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
   }
 
   // Helper: map a team name to its flag emoji
-  const allTeamsList = Object.values(INITIAL_GROUPS).flat();
 
   // Scoring function: grades user predictions against official results
   const calculateScore = (userPredictions, official, isLockedVal) => {
@@ -287,6 +292,48 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
     }
   };
 
+  const handleToggleSecondChanceLock = async () => {
+    try {
+      setSaving(true);
+      setStatusMsg(null);
+      const newSecondChanceLockState = !isSecondChanceLocked;
+
+      const { error } = await supabase
+        .from('tournament_results')
+        .update({
+          is_second_chance_locked: newSecondChanceLockState,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', 'live');
+
+      if (error) throw error;
+
+      // Recalculate user brackets scores with the new lock state
+      const { data: brackets, error: bracketsError } = await supabase
+        .from('brackets')
+        .select('*');
+      if (bracketsError) throw bracketsError;
+
+      const updates = brackets.map(b => {
+        const newSecondChanceScore = calculateSecondChanceScore(b.predictions_second_chance, localResults, newSecondChanceLockState);
+        return supabase
+          .from('brackets')
+          .update({ score_second_chance: newSecondChanceScore })
+          .eq('id', b.id);
+      });
+      await Promise.all(updates);
+
+      setIsSecondChanceLocked(newSecondChanceLockState);
+      setStatusMsg({ type: 'success', message: `Second Chance submissions are now ${newSecondChanceLockState ? 'LOCKED' : 'OPEN'}! User scores recalculated.` });
+      onResultsUpdated();
+    } catch (err) {
+      console.error(err);
+      setStatusMsg({ type: 'error', message: err.message || 'Error updating Second Chance lock state.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // --- Reset all user predictions/brackets ---
   const handleResetBrackets = async () => {
     if (!window.confirm("Are you sure you want to RESET all user predictions, brackets, and scores? This action cannot be undone.")) return;
@@ -320,6 +367,17 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
             predictions: emptyPredictions,
             score: 0,
             is_submitted: false,
+            predictions_second_chance: {
+              knockouts: {
+                r32: {},
+                r16: {},
+                qf: {},
+                sf: {},
+                final: null,
+                third_place: null
+              }
+            },
+            score_second_chance: 0,
             updated_at: new Date().toISOString()
           })
           .eq('id', b.id)
@@ -371,6 +429,7 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
         .from('tournament_results')
         .update({
           results: defaultResults,
+          is_second_chance_locked: false,
           updated_at: new Date().toISOString()
         })
         .eq('id', 'live');
@@ -386,11 +445,15 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
       const updates = brackets.map(b => 
         supabase
           .from('brackets')
-          .update({ score: 0 })
+          .update({ 
+            score: 0,
+            score_second_chance: 0
+          })
           .eq('id', b.id)
       );
       await Promise.all(updates);
 
+      setIsSecondChanceLocked(false);
       setLocalResults(defaultResults);
       setStatusMsg({ type: 'success', message: 'Official results successfully reset and user scores set to 0.' });
       onResultsUpdated();
@@ -568,9 +631,13 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
 
       const updates = brackets.map(b => {
         const newScore = calculateScore(b.predictions, results, isLocked);
+        const newSecondChanceScore = calculateSecondChanceScore(b.predictions_second_chance, results, isSecondChanceLocked);
         return supabase
           .from('brackets')
-          .update({ score: newScore })
+          .update({ 
+            score: newScore,
+            score_second_chance: newSecondChanceScore
+          })
           .eq('id', b.id);
       });
       await Promise.all(updates);
@@ -626,6 +693,29 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
           </button>
           <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
             Current Status: {isLocked ? <span style={{ color: 'var(--crimson)' }}>LOCKED</span> : <span style={{ color: 'var(--emerald)' }}>OPEN</span>}
+          </span>
+        </div>
+      </div>
+
+      {/* Second Chance Submission Locking Toggle */}
+      <div className="glass-card" style={{ padding: '1.25rem', marginBottom: '2rem', borderLeft: '4px solid var(--azure)', background: 'rgba(59, 130, 246, 0.02)' }}>
+        <h3 style={{ fontSize: '1.1rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span>🔒</span> Second-Chance Knockout Lock
+        </h3>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+          Manually freeze second-chance bracket entries. Predictions automatically lock if knockout games start.
+        </p>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <button 
+            className={`btn ${isSecondChanceLocked ? 'btn-danger' : 'btn-secondary'}`}
+            onClick={handleToggleSecondChanceLock}
+            disabled={saving}
+          >
+            {isSecondChanceLocked ? '🔓 Open Second Chance Submissions' : '🔒 Lock Second Chance Submissions'}
+          </button>
+          <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
+            Current Status: {isSecondChanceLocked ? <span style={{ color: 'var(--crimson)' }}>LOCKED</span> : <span style={{ color: 'var(--emerald)' }}>OPEN</span>}
           </span>
         </div>
       </div>

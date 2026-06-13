@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { calculateGroupStandings } from '../utils/standings';
+import { calculateGroupStandings, getOfficialAdvancingTeams, calculateSecondChanceScore } from '../utils/standings';
 
 // Helper: 12 Groups setup with flags
 const INITIAL_GROUPS = {
@@ -19,7 +20,7 @@ const INITIAL_GROUPS = {
 };
 
 // Static Match Fixtures Schedule for Group Stage
-const GROUP_MATCHES = [
+export const GROUP_MATCHES = [
   {"id": "A_m1", "group": "A", "home": "Mexico", "away": "South Africa", "date": "June 11"},
   {"id": "A_m2", "group": "A", "home": "Korea Republic", "away": "Czechia", "date": "June 11"},
   {"id": "A_m3", "group": "A", "home": "Czechia", "away": "South Africa", "date": "June 18"},
@@ -106,6 +107,7 @@ const GROUP_MATCHES = [
 ];
 
 // Helper: map a team name to its flag emoji
+// eslint-disable-next-line react-refresh/only-export-components
 export const getTeamFlag = (teamName) => {
   if (!teamName) return '';
   for (const group of Object.values(INITIAL_GROUPS)) {
@@ -116,6 +118,7 @@ export const getTeamFlag = (teamName) => {
 };
 
 // Get current 3rd place teams list from current predictions
+// eslint-disable-next-line react-refresh/only-export-components
 export const getThirdPlaceTeams = (groupsState) => {
   return Object.keys(INITIAL_GROUPS).map(g => {
     const list = groupsState[g] || INITIAL_GROUPS[g].teams;
@@ -123,6 +126,7 @@ export const getThirdPlaceTeams = (groupsState) => {
   });
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const calculateScore = (userPredictions, official, isLockedVal) => {
   if (!isLockedVal) return 0;
   let score = 0;
@@ -191,14 +195,28 @@ export const calculateScore = (userPredictions, official, isLockedVal) => {
 };
 
 export default function BracketEditor({ profile, bracket, tournamentResults, onSaveSuccess }) {
+  const [bracketType, setBracketType] = useState('primary'); // 'primary', 'second_chance'
   const [activeSubTab, setActiveSubTab] = useState('groups'); // 'groups', 'knockouts'
   const [predictions, setPredictions] = useState(null);
+  const [predictionsSecondChance, setPredictionsSecondChance] = useState(null);
   const [saveStatus, setSaveStatus] = useState(null); // { type: 'success'|'error', message: '' }
-  const [saving, setSaving] = useState(false);
+  const [, setSaving] = useState(false);
   const isDirtyRef = useRef(false);
+  const isSecondChanceDirtyRef = useRef(false);
 
   const isLocked = tournamentResults?.is_locked || false;
   const officialResults = tournamentResults?.results || {};
+
+  const groupMatchesCompleted = GROUP_MATCHES.every(m => {
+    const act = officialResults?.actual_matches?.[m.id];
+    return act && act.completed;
+  });
+
+  const isSecondChanceLocked = tournamentResults?.is_second_chance_locked || officialResults?.completed_games?.some(g => g.startsWith('r32_') || g.startsWith('r16_') || g.startsWith('qf_') || g.startsWith('sf_') || g === 'final' || g === 'third_place') || false;
+
+  const activePredictions = bracketType === 'primary' ? predictions : predictionsSecondChance;
+  const isActiveLocked = bracketType === 'primary' ? isLocked : isSecondChanceLocked;
+
 
   // Load predictions state from bracket prop or set defaults, and auto-align with official results
   useEffect(() => {
@@ -276,8 +294,41 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
         }
       }
 
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPredictions(cloned);
     }
+
+    // Load and normalize Second Chance predictions
+    const secondChanceCloned = JSON.parse(JSON.stringify(bracket?.predictions_second_chance || {}));
+    if (!secondChanceCloned.knockouts) secondChanceCloned.knockouts = {};
+    const stagesList = ['r32', 'r16', 'qf', 'sf'];
+    stagesList.forEach(stage => {
+      if (!secondChanceCloned.knockouts[stage]) secondChanceCloned.knockouts[stage] = {};
+    });
+    if (secondChanceCloned.knockouts.final === undefined) secondChanceCloned.knockouts.final = null;
+    if (secondChanceCloned.knockouts.third_place === undefined) secondChanceCloned.knockouts.third_place = null;
+
+    if (!isSecondChanceLocked) {
+      // Auto-align completed knockouts from official results
+      stagesList.forEach(st => {
+        if (secondChanceCloned.knockouts[st]) {
+          Object.keys(secondChanceCloned.knockouts[st]).forEach(mId => {
+            if (officialResults?.completed_games?.includes(`${st}_${mId}`)) {
+              secondChanceCloned.knockouts[st][mId] = officialResults.knockouts[st][mId];
+            }
+          });
+        }
+      });
+      if (officialResults?.completed_games?.includes('final')) {
+        secondChanceCloned.knockouts.final = officialResults.knockouts.final;
+      }
+      if (officialResults?.completed_games?.includes('third_place')) {
+        secondChanceCloned.knockouts.third_place = officialResults.knockouts.third_place;
+      }
+    }
+
+    setPredictionsSecondChance(secondChanceCloned);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bracket, tournamentResults]);
 
   // Auto-save predictions when dirty
@@ -365,9 +416,67 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
     }, 1000); // Debounce for 1 second
 
     return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [predictions]);
 
-  if (!predictions) {
+  // Auto-save second-chance predictions when dirty
+  useEffect(() => {
+    if (!predictionsSecondChance || !bracket || !isSecondChanceDirtyRef.current) return;
+
+    setSaveStatus({ type: 'info', message: 'Saving changes...' });
+
+    const timer = setTimeout(async () => {
+      try {
+        setSaving(true);
+        const aligned = JSON.parse(JSON.stringify(predictionsSecondChance));
+
+        if (!isSecondChanceLocked) {
+          const stagesList = ['r32', 'r16', 'qf', 'sf'];
+          stagesList.forEach(st => {
+            if (aligned.knockouts[st]) {
+              Object.keys(aligned.knockouts[st]).forEach(mId => {
+                if (officialResults?.completed_games?.includes(`${st}_${mId}`)) {
+                  aligned.knockouts[st][mId] = officialResults.knockouts[st][mId];
+                }
+              });
+            }
+          });
+          if (officialResults?.completed_games?.includes('final')) {
+            aligned.knockouts.final = officialResults.knockouts.final;
+          }
+          if (officialResults?.completed_games?.includes('third_place')) {
+            aligned.knockouts.third_place = officialResults.knockouts.third_place;
+          }
+        }
+
+        const calculatedSecondChanceScore = calculateSecondChanceScore(aligned, officialResults, isSecondChanceLocked);
+        const { error } = await supabase
+          .from('brackets')
+          .update({
+            predictions_second_chance: aligned,
+            score_second_chance: calculatedSecondChanceScore,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', profile.id);
+
+        if (error) throw error;
+
+        isSecondChanceDirtyRef.current = false;
+        setSaveStatus({ type: 'success', message: 'Second-chance changes saved automatically! ⚽' });
+        onSaveSuccess();
+      } catch (err) {
+        console.error('Second-chance Auto-save error:', err);
+        setSaveStatus({ type: 'error', message: err.message || 'Second-chance Auto-save failed.' });
+      } finally {
+        setSaving(false);
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [predictionsSecondChance]);
+
+  if (!predictions || (bracketType === 'second_chance' && !predictionsSecondChance)) {
     return <div style={{ textAlign: 'center', padding: '2rem' }}>Formatting predictions...</div>;
   }
 
@@ -477,8 +586,10 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
     });
   };
 
-  // --- Knockouts Logic ---
   const calculateR32Teams = () => {
+    if (bracketType === 'second_chance') {
+      return getOfficialAdvancingTeams(officialResults, GROUP_MATCHES);
+    }
     const teams = {};
     
     // Group Winners and Runners-Up
@@ -587,12 +698,12 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
   };
 
   const getSelectedWinner = (stage, matchId) => {
-    return predictions.knockouts?.[stage]?.[matchId] || null;
+    return activePredictions.knockouts?.[stage]?.[matchId] || null;
   };
 
   const getSelectedLoser = (stage, matchId) => {
     const { teamA, teamB } = getMatchTeams(stage, matchId);
-    const winner = predictions.knockouts?.[stage]?.[matchId];
+    const winner = activePredictions.knockouts?.[stage]?.[matchId];
     if (!winner || !teamA || !teamB) return null;
     return winner === teamA ? teamB : teamA;
   };
@@ -601,9 +712,9 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
   const selectWinner = (stage, matchId, teamName) => {
     const gameKey = matchId ? `${stage}_${matchId}` : stage;
     const isGameCompleted = officialResults?.completed_games?.includes(gameKey);
-    if (isLocked || isGameCompleted || !teamName) return;
+    if (isActiveLocked || isGameCompleted || !teamName) return;
 
-    let updated = { ...predictions };
+    let updated = JSON.parse(JSON.stringify(activePredictions));
 
     if (stage === 'final') {
       updated.knockouts.final = teamName;
@@ -631,8 +742,13 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
     const loser = teamName === teamA ? teamB : teamA;
     cleanUpTree(loser);
 
-    isDirtyRef.current = true;
-    setPredictions(updated);
+    if (bracketType === 'primary') {
+      isDirtyRef.current = true;
+      setPredictions(updated);
+    } else {
+      isSecondChanceDirtyRef.current = true;
+      setPredictionsSecondChance(updated);
+    }
   };
 
 
@@ -641,50 +757,94 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
 
   return (
     <div className="editor-layout">
-      <div className="editor-header">
-        <div>
-          <h2 style={{ fontSize: '1.6rem' }}>Tournament Predictor</h2>
-          <p style={{ color: 'var(--text-secondary)' }}>Predict match outcomes and manually resolve standings ties to construct your bracket.</p>
-        </div>
-
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          {saveStatus && (
-            <div className={saveStatus.type === 'success' ? 'success-box' : saveStatus.type === 'info' ? 'info-box' : 'error-box'} style={{ margin: 0, padding: '0.5rem 1rem' }}>
-              {saveStatus.message}
-            </div>
-          )}
-
-          {isLocked && (
-            <div className="locked-notification">
-              🔒 Submissions Locked
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Editor Sub-navigation */}
-      <div className="editor-nav">
-        <button 
-          className={`editor-nav-btn ${activeSubTab === 'groups' ? 'active' : ''}`}
-          onClick={() => setActiveSubTab('groups')}
+      {/* Primary vs Second Chance Tab Selector */}
+      <div className="editor-nav" style={{ gap: '1rem', borderBottom: '2px solid var(--border-light)', paddingBottom: '1rem', marginBottom: '2rem' }}>
+        <button
+          className={`editor-nav-btn ${bracketType === 'primary' ? 'active' : ''}`}
+          onClick={() => {
+            setBracketType('primary');
+            setActiveSubTab('groups');
+          }}
+          style={{ fontSize: '1.1rem', padding: '0.5rem 1rem' }}
         >
-          1. Group Stage
+          🏆 Primary Bracket
         </button>
-        <button 
-          className={`editor-nav-btn ${activeSubTab === 'knockouts' ? 'active' : ''}`}
-          onClick={() => setActiveSubTab('knockouts')}
-          style={{ position: 'relative' }}
+        <button
+          className={`editor-nav-btn ${bracketType === 'second_chance' ? 'active' : ''}`}
+          onClick={() => {
+            setBracketType('second_chance');
+            setActiveSubTab('knockouts');
+          }}
+          style={{ fontSize: '1.1rem', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
         >
-          2. Knockout Bracket
-          {selectedThirdPlacesCount !== 8 && (
-            <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: 'var(--azure)', color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              !
-            </span>
+          ⚡ Second Chance Bracket
+          {!groupMatchesCompleted && (
+            <span style={{ fontSize: '0.85rem' }}>🔒</span>
           )}
         </button>
       </div>
 
-      {activeSubTab === 'groups' && (
+      {bracketType === 'second_chance' && !groupMatchesCompleted ? (
+        <div className="glass-card" style={{ padding: '3rem', textAlign: 'center', margin: '2rem 0', border: '1px solid var(--gold)' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔒</div>
+          <h3 style={{ color: 'var(--gold)', marginBottom: '0.5rem' }}>Second Chance Bracket Locked</h3>
+          <p style={{ color: 'var(--text-secondary)', maxWidth: '500px', margin: '0 auto' }}>
+            The Second Chance Knockout Bracket will unlock automatically once all 72 Group Stage matches are completed.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="editor-header">
+            <div>
+              <h2 style={{ fontSize: '1.6rem' }}>
+                {bracketType === 'primary' ? 'Tournament Predictor' : 'Second Chance Knockout Predictor'}
+              </h2>
+              <p style={{ color: 'var(--text-secondary)' }}>
+                {bracketType === 'primary' 
+                  ? 'Predict match outcomes and manually resolve standings ties to construct your bracket.'
+                  : 'Predict the knockout bracket starting from the official group stage qualifiers.'}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              {saveStatus && (
+                <div className={saveStatus.type === 'success' ? 'success-box' : saveStatus.type === 'info' ? 'info-box' : 'error-box'} style={{ margin: 0, padding: '0.5rem 1rem' }}>
+                  {saveStatus.message}
+                </div>
+              )}
+
+              {isActiveLocked && (
+                <div className="locked-notification">
+                  🔒 Submissions Locked
+                </div>
+              )}
+            </div>
+          </div>
+
+          {bracketType === 'primary' && (
+            <div className="editor-nav">
+              <button 
+                className={`editor-nav-btn ${activeSubTab === 'groups' ? 'active' : ''}`}
+                onClick={() => setActiveSubTab('groups')}
+              >
+                1. Group Stage
+              </button>
+              <button 
+                className={`editor-nav-btn ${activeSubTab === 'knockouts' ? 'active' : ''}`}
+                onClick={() => setActiveSubTab('knockouts')}
+                style={{ position: 'relative' }}
+              >
+                2. Knockout Bracket
+                {selectedThirdPlacesCount !== 8 && (
+                  <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: 'var(--azure)', color: '#fff', borderRadius: '50%', width: '18px', height: '18px', fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    !
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
+
+          {bracketType === 'primary' && activeSubTab === 'groups' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           
           {/* Third Places Wildcard Selector */}
@@ -944,7 +1104,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
 
       {activeSubTab === 'knockouts' && (
         <div>
-          {selectedThirdPlacesCount !== 8 && (
+          {bracketType === 'primary' && selectedThirdPlacesCount !== 8 && (
             <div className="error-box" style={{ marginBottom: '1.5rem' }}>
               ⚠️ Please complete the Group Stage tab first and select exactly 8 advancing third-place wildcard teams to build the complete Round of 32 knockout grid.
             </div>
@@ -960,9 +1120,9 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                   const { teamA, teamB, officialWinner } = getMatchTeams('r32', m.id);
                   const selectedWinner = getSelectedWinner('r32', m.id);
                   const isGameCompleted = officialResults?.completed_games?.includes(`r32_${m.id}`) || false;
-                  const isCompleted = isLocked || isGameCompleted;
+                  const isCompleted = isActiveLocked || isGameCompleted;
 
-                  const predictionClass = (isLocked && isGameCompleted)
+                  const predictionClass = (isActiveLocked && isGameCompleted)
                     ? (selectedWinner === officialWinner ? 'correct-prediction' : 'incorrect-prediction')
                     : '';
 
@@ -1005,9 +1165,9 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                   const { teamA, teamB, officialWinner } = getMatchTeams('r16', matchId);
                   const selectedWinner = getSelectedWinner('r16', matchId);
                   const isGameCompleted = officialResults?.completed_games?.includes(`r16_${matchId}`) || false;
-                  const isCompleted = isLocked || isGameCompleted;
+                  const isCompleted = isActiveLocked || isGameCompleted;
 
-                  const predictionClass = (isLocked && isGameCompleted)
+                  const predictionClass = (isActiveLocked && isGameCompleted)
                     ? (selectedWinner === officialWinner ? 'correct-prediction' : 'incorrect-prediction')
                     : '';
 
@@ -1050,9 +1210,9 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                   const { teamA, teamB, officialWinner } = getMatchTeams('qf', matchId);
                   const selectedWinner = getSelectedWinner('qf', matchId);
                   const isGameCompleted = officialResults?.completed_games?.includes(`qf_${matchId}`) || false;
-                  const isCompleted = isLocked || isGameCompleted;
+                  const isCompleted = isActiveLocked || isGameCompleted;
 
-                  const predictionClass = (isLocked && isGameCompleted)
+                  const predictionClass = (isActiveLocked && isGameCompleted)
                     ? (selectedWinner === officialWinner ? 'correct-prediction' : 'incorrect-prediction')
                     : '';
 
@@ -1095,9 +1255,9 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                   const { teamA, teamB, officialWinner } = getMatchTeams('sf', matchId);
                   const selectedWinner = getSelectedWinner('sf', matchId);
                   const isGameCompleted = officialResults?.completed_games?.includes(`sf_${matchId}`) || false;
-                  const isCompleted = isLocked || isGameCompleted;
+                  const isCompleted = isActiveLocked || isGameCompleted;
 
-                  const predictionClass = (isLocked && isGameCompleted)
+                  const predictionClass = (isActiveLocked && isGameCompleted)
                     ? (selectedWinner === officialWinner ? 'correct-prediction' : 'incorrect-prediction')
                     : '';
 
@@ -1138,11 +1298,11 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                   <div className="round-header">3rd Place Match</div>
                   {(() => {
                     const { teamA, teamB, officialWinner } = getMatchTeams('third_place');
-                    const selectedWinner = predictions.knockouts?.third_place;
+                    const selectedWinner = activePredictions.knockouts?.third_place;
                     const isGameCompleted = officialResults?.completed_games?.includes('third_place') || false;
-                    const isCompleted = isLocked || isGameCompleted;
+                    const isCompleted = isActiveLocked || isGameCompleted;
 
-                    const predictionClass = (isLocked && isGameCompleted)
+                    const predictionClass = (isActiveLocked && isGameCompleted)
                       ? (selectedWinner === officialWinner ? 'correct-prediction' : 'incorrect-prediction')
                       : '';
 
@@ -1180,11 +1340,11 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                   <div className="round-header">Grand Final</div>
                   {(() => {
                     const { teamA, teamB, officialWinner } = getMatchTeams('final');
-                    const selectedWinner = predictions.knockouts?.final;
+                    const selectedWinner = activePredictions.knockouts?.final;
                     const isGameCompleted = officialResults?.completed_games?.includes('final') || false;
-                    const isCompleted = isLocked || isGameCompleted;
+                    const isCompleted = isActiveLocked || isGameCompleted;
 
-                    const predictionClass = (isLocked && isGameCompleted)
+                    const predictionClass = (isActiveLocked && isGameCompleted)
                       ? (selectedWinner === officialWinner ? 'correct-prediction' : 'incorrect-prediction')
                       : '';
 
@@ -1219,12 +1379,12 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                 </div>
 
                 {/* CHAMPION BANNER */}
-                {predictions.knockouts?.final && (
+                {activePredictions.knockouts?.final && (
                   <div className="glass-card champion-card">
                     <div className="champion-cup">🏆</div>
                     <div style={{ textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.1em', color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: '0.25rem' }}>Your Predicted Champion</div>
                     <div className="champion-name">
-                      {getTeamFlag(predictions.knockouts.final)} {predictions.knockouts.final}
+                      {getTeamFlag(activePredictions.knockouts.final)} {activePredictions.knockouts.final}
                     </div>
                   </div>
                 )}
@@ -1234,6 +1394,8 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
           </div>
         </div>
       )}
+      </>
+    )}
     </div>
   );
 }

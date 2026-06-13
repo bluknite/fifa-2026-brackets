@@ -1,8 +1,29 @@
+import { GROUP_MATCHES } from './BracketEditor';
+
 export default function Dashboard({ profile, bracket, tournamentResults, onNavigate }) {
   const isLocked = tournamentResults?.is_locked || false;
   const hasBracket = !!bracket && Object.keys(bracket.predictions || {}).length > 0;
   const isSubmitted = bracket?.is_submitted || false;
   const score = bracket?.score || 0;
+  const officialResults = tournamentResults?.results || {};
+
+  const groupMatchesCompleted = GROUP_MATCHES.every(m => {
+    const act = officialResults?.actual_matches?.[m.id];
+    return act && act.completed;
+  });
+
+  const isSecondChanceLocked = tournamentResults?.is_second_chance_locked || officialResults?.completed_games?.some(g => g.startsWith('r32_') || g.startsWith('r16_') || g.startsWith('qf_') || g.startsWith('sf_') || g === 'final' || g === 'third_place') || false;
+
+  const hasSecondChancePicks = () => {
+    if (!bracket?.predictions_second_chance?.knockouts) return false;
+    const ko = bracket.predictions_second_chance.knockouts;
+    return Object.values(ko.r32 || {}).some(Boolean) || 
+           Object.values(ko.r16 || {}).some(Boolean) || 
+           Object.values(ko.qf || {}).some(Boolean) || 
+           Object.values(ko.sf || {}).some(Boolean) || 
+           !!ko.final || 
+           !!ko.third_place;
+  };
 
   // Count matches outcome predictions
   const countGroupPicks = () => {
@@ -76,18 +97,65 @@ export default function Dashboard({ profile, bracket, tournamentResults, onNavig
           </div>
 
           {isLocked ? (
-            <div className="error-box">
+            <div className="error-box" style={{ marginBottom: '1.5rem' }}>
               🔒 Submissions are closed by the league owner. You can no longer modify your predictions, but you can track your live score!
             </div>
           ) : (
-            <div className="info-box">
+            <div className="info-box" style={{ marginBottom: '1.5rem' }}>
               ⚽ Any changes you make to your predictions are saved automatically! Completed games will automatically lock to their official outcomes.
             </div>
           )}
 
+          {/* Second Chance Stats block */}
+          {groupMatchesCompleted && (
+            <>
+              <h4 style={{ fontSize: '1.1rem', color: 'var(--azure)', marginTop: '2rem', marginBottom: '1rem' }}>Second-Chance Bracket Status</h4>
+              <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+                <div style={{ flex: '1', minWidth: '180px', background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                  <span className="stat-label">Second Chance Points</span>
+                  <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--azure)', fontFamily: 'var(--font-display)', marginTop: '0.25rem' }}>
+                    {bracket?.score_second_chance || 0} pts
+                  </div>
+                </div>
+
+                <div style={{ flex: '1', minWidth: '180px', background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                  <span className="stat-label">Submission Status</span>
+                  <div style={{ marginTop: '0.5rem' }}>
+                    {hasSecondChancePicks() ? (
+                      <span className="status-badge status-submitted">Saved</span>
+                    ) : (
+                      <span className="status-badge status-draft">Not Saved</span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ flex: '1', minWidth: '180px', background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                  <span className="stat-label">Lock Status</span>
+                  <div style={{ marginTop: '0.5rem' }}>
+                    {isSecondChanceLocked ? (
+                      <span className="status-badge" style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--crimson)' }}>Locked</span>
+                    ) : (
+                      <span className="status-badge status-submitted" style={{ background: 'rgba(16, 185, 129, 0.1)', color: 'var(--emerald)' }}>Submissions Open</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {isSecondChanceLocked ? (
+                <div className="error-box" style={{ marginBottom: '1.5rem' }}>
+                  🔒 Second-Chance submissions are closed. You can track your second-chance score!
+                </div>
+              ) : (
+                <div className="info-box" style={{ marginBottom: '1.5rem' }}>
+                  ⚽ Second-chance bracket is active! Any changes you make in the Second-Chance tab are saved automatically.
+                </div>
+              )}
+            </>
+          )}
+
           <div style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
-              <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.35rem' }}>Bracket Progress ({completionPercentage}%)</div>
+              <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.35rem' }}>Primary Bracket Progress ({completionPercentage}%)</div>
               <div style={{ width: '220px', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
                 <div style={{ width: `${Math.min(completionPercentage, 100)}%`, height: '100%', background: 'var(--emerald)', transition: 'width 0.5s ease' }}></div>
               </div>

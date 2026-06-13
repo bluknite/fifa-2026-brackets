@@ -6,6 +6,7 @@ export default function Leaderboard({ currentUserId }) {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [leaderboardType, setLeaderboardType] = useState('primary'); // 'primary', 'second_chance'
   
   // State for viewing someone's bracket
   const [selectedUserBracket, setSelectedUserBracket] = useState(null);
@@ -27,7 +28,9 @@ export default function Leaderboard({ currentUserId }) {
             id,
             score,
             is_submitted,
-            predictions
+            predictions,
+            score_second_chance,
+            predictions_second_chance
           )
         `);
 
@@ -44,15 +47,10 @@ export default function Leaderboard({ currentUserId }) {
           avatarUrl: profile.avatar_url,
           score: userBracket?.score || 0,
           isSubmitted: userBracket?.is_submitted || false,
-          predictions: userBracket?.predictions || null
+          predictions: userBracket?.predictions || null,
+          scoreSecondChance: userBracket?.score_second_chance || 0,
+          predictionsSecondChance: userBracket?.predictions_second_chance || null
         };
-      });
-
-      // Sort by score DESC, then by submitted status, then by name alphabetically
-      formatted.sort((a, b) => {
-        if (b.score !== a.score) return b.score - a.score;
-        if (b.isSubmitted !== a.isSubmitted) return (b.isSubmitted ? 1 : 0) - (a.isSubmitted ? 1 : 0);
-        return a.displayName.localeCompare(b.displayName);
       });
 
       setLeaderboard(formatted);
@@ -65,14 +63,41 @@ export default function Leaderboard({ currentUserId }) {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchLeaderboard();
   }, []);
 
+  const hasSecondChancePicks = (user) => {
+    if (!user.predictionsSecondChance?.knockouts) return false;
+    const ko = user.predictionsSecondChance.knockouts;
+    return Object.values(ko.r32 || {}).some(Boolean) || 
+           Object.values(ko.r16 || {}).some(Boolean) || 
+           Object.values(ko.qf || {}).some(Boolean) || 
+           Object.values(ko.sf || {}).some(Boolean) || 
+           !!ko.final || 
+           !!ko.third_place;
+  };
+
   const handleViewBracket = (user) => {
-    if (!user.predictions) return;
+    const hasData = leaderboardType === 'primary' ? !!user.predictions : hasSecondChancePicks(user);
+    if (!hasData) return;
     setSelectedUserBracket(user);
     setShowModal(true);
   };
+
+  // Sort by active type DESC, then by submitted status / picks status, then by name alphabetically
+  const sortedLeaderboard = [...leaderboard].sort((a, b) => {
+    if (leaderboardType === 'primary') {
+      if (b.score !== a.score) return b.score - a.score;
+      if (b.isSubmitted !== a.isSubmitted) return (b.isSubmitted ? 1 : 0) - (a.isSubmitted ? 1 : 0);
+    } else {
+      if (b.scoreSecondChance !== a.scoreSecondChance) return b.scoreSecondChance - a.scoreSecondChance;
+      const aHas = hasSecondChancePicks(a);
+      const bHas = hasSecondChancePicks(b);
+      if (bHas !== aHas) return (bHas ? 1 : 0) - (aHas ? 1 : 0);
+    }
+    return a.displayName.localeCompare(b.displayName);
+  });
 
   if (loading) {
     return <div style={{ textAlign: 'center', padding: '2rem' }}>Recalculating standings...</div>;
@@ -90,6 +115,24 @@ export default function Leaderboard({ currentUserId }) {
         </button>
       </div>
 
+      {/* Tabs */}
+      <div className="editor-tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
+        <button 
+          className={`editor-nav-btn ${leaderboardType === 'primary' ? 'active' : ''}`}
+          onClick={() => setLeaderboardType('primary')}
+          style={{ background: leaderboardType === 'primary' ? 'var(--emerald)' : 'transparent', color: leaderboardType === 'primary' ? '#000' : 'var(--text-secondary)' }}
+        >
+          Primary Bracket
+        </button>
+        <button 
+          className={`editor-nav-btn ${leaderboardType === 'second_chance' ? 'active' : ''}`}
+          onClick={() => setLeaderboardType('second_chance')}
+          style={{ background: leaderboardType === 'second_chance' ? 'var(--emerald)' : 'transparent', color: leaderboardType === 'second_chance' ? '#000' : 'var(--text-secondary)' }}
+        >
+          Second Chance Knockouts
+        </button>
+      </div>
+
       {error && <div className="error-box">{error}</div>}
 
       <div className="table-wrapper">
@@ -103,7 +146,7 @@ export default function Leaderboard({ currentUserId }) {
             </tr>
           </thead>
           <tbody>
-            {leaderboard.map((user, idx) => {
+            {sortedLeaderboard.map((user, idx) => {
               const isMe = user.id === currentUserId;
               
               // Assign rank indices
@@ -112,13 +155,21 @@ export default function Leaderboard({ currentUserId }) {
               else if (idx === 1) rankBadge = <span className="rank-badge rank-2">🥈</span>;
               else if (idx === 2) rankBadge = <span className="rank-badge rank-3">🥉</span>;
 
+              const isPrimary = leaderboardType === 'primary';
+              const hasData = isPrimary ? !!user.predictions : hasSecondChancePicks(user);
+              const statusLabel = isPrimary 
+                ? (user.isSubmitted ? 'Saved' : 'Not Saved')
+                : (hasSecondChancePicks(user) ? 'Saved' : 'Not Saved');
+              
+              const activeScore = isPrimary ? user.score : user.scoreSecondChance;
+
               return (
                 <tr 
                   key={user.id} 
                   className={isMe ? 'current-user' : ''}
-                  onClick={() => user.predictions && handleViewBracket(user)}
-                  style={{ cursor: user.predictions ? 'pointer' : 'default' }}
-                  title={user.predictions ? "Click to view bracket" : "No bracket submitted"}
+                  onClick={() => hasData && handleViewBracket(user)}
+                  style={{ cursor: hasData ? 'pointer' : 'default' }}
+                  title={hasData ? "Click to view bracket" : "No bracket picks made"}
                 >
                   <td>{rankBadge}</td>
                   <td>
@@ -136,20 +187,18 @@ export default function Leaderboard({ currentUserId }) {
                     </div>
                   </td>
                   <td>
-                    {user.isSubmitted ? (
-                      <span className="status-badge status-submitted">Saved</span>
-                    ) : (
-                      <span className="status-badge status-draft">Not Saved</span>
-                    )}
+                    <span className={`status-badge ${statusLabel === 'Saved' ? 'status-submitted' : 'status-draft'}`}>
+                      {statusLabel}
+                    </span>
                   </td>
                   <td style={{ textAlign: 'right', fontWeight: 800, fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: isMe ? 'var(--emerald)' : 'var(--text-primary)' }}>
-                    {user.score} pts
+                    {activeScore} pts
                   </td>
                 </tr>
               );
             })}
 
-            {leaderboard.length === 0 && (
+            {sortedLeaderboard.length === 0 && (
               <tr>
                 <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                   No players registered yet.
@@ -174,8 +223,12 @@ export default function Leaderboard({ currentUserId }) {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
               <div>
-                <h3 style={{ fontSize: '1.4rem' }}>{selectedUserBracket.displayName}'s Predictions</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Score: {selectedUserBracket.score} pts</p>
+                <h3 style={{ fontSize: '1.4rem' }}>
+                  {selectedUserBracket.displayName}'s {leaderboardType === 'primary' ? 'Primary' : 'Second-Chance'} Picks
+                </h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  Score: {leaderboardType === 'primary' ? selectedUserBracket.score : selectedUserBracket.scoreSecondChance} pts
+                </p>
               </div>
               <button 
                 className="btn btn-secondary" 
@@ -186,60 +239,120 @@ export default function Leaderboard({ currentUserId }) {
               </button>
             </div>
 
-            {/* Champion Spot */}
-            {selectedUserBracket.predictions?.knockouts?.final ? (
-              <div style={{ 
-                background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(251, 191, 36, 0.02))', 
-                padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--gold)',
-                textAlign: 'center', marginBottom: '1.5rem'
-              }}>
-                <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--gold)', fontWeight: 'bold' }}>Predicted Champion</div>
-                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--gold)', marginTop: '0.25rem' }}>
-                  {getTeamFlag(selectedUserBracket.predictions.knockouts.final)} {selectedUserBracket.predictions.knockouts.final}
+            {leaderboardType === 'primary' ? (
+              <>
+                {/* Champion Spot */}
+                {selectedUserBracket.predictions?.knockouts?.final ? (
+                  <div style={{ 
+                    background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(251, 191, 36, 0.02))', 
+                    padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--gold)',
+                    textAlign: 'center', marginBottom: '1.5rem'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--gold)', fontWeight: 'bold' }}>Predicted Champion</div>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--gold)', marginTop: '0.25rem' }}>
+                      {getTeamFlag(selectedUserBracket.predictions.knockouts.final)} {selectedUserBracket.predictions.knockouts.final}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+                    No champion selected yet.
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                  {/* Left Side: Semi-Finalists & Third Place */}
+                  <div>
+                    <h4 style={{ color: 'var(--emerald)', fontSize: '0.95rem', marginBottom: '0.75rem', textTransform: 'uppercase' }}>Knockout Picks</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Finalist A:</span>
+                        <strong>{selectedUserBracket.predictions?.knockouts?.sf?.m1 || 'TBD'}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Finalist B:</span>
+                        <strong>{selectedUserBracket.predictions?.knockouts?.sf?.m2 || 'TBD'}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>3rd Place:</span>
+                        <strong>{selectedUserBracket.predictions?.knockouts?.third_place || 'TBD'}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Side: Group Winners list */}
+                  <div>
+                    <h4 style={{ color: 'var(--azure)', fontSize: '0.95rem', marginBottom: '0.75rem', textTransform: 'uppercase' }}>Advancing Wildcards</h4>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                      {selectedUserBracket.predictions?.third_place_advancers?.map(team => (
+                        <span key={team} style={{ fontSize: '0.8rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--azure)', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                          {getTeamFlag(team)} {team}
+                        </span>
+                      ))}
+                      {(!selectedUserBracket.predictions?.third_place_advancers || selectedUserBracket.predictions.third_place_advancers.length === 0) && (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>None selected</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </>
             ) : (
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-                No champion selected yet.
-              </div>
+              <>
+                {/* Second Chance Champion Spot */}
+                {selectedUserBracket.predictionsSecondChance?.knockouts?.final ? (
+                  <div style={{ 
+                    background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(251, 191, 36, 0.02))', 
+                    padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--gold)',
+                    textAlign: 'center', marginBottom: '1.5rem'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--gold)', fontWeight: 'bold' }}>Predicted Champion</div>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--gold)', marginTop: '0.25rem' }}>
+                      {getTeamFlag(selectedUserBracket.predictionsSecondChance.knockouts.final)} {selectedUserBracket.predictionsSecondChance.knockouts.final}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+                    No champion selected yet.
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                  {/* Left Side: Semi-Finalists & Third Place */}
+                  <div>
+                    <h4 style={{ color: 'var(--emerald)', fontSize: '0.95rem', marginBottom: '0.75rem', textTransform: 'uppercase' }}>Knockout Picks</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Finalist A:</span>
+                        <strong>{selectedUserBracket.predictionsSecondChance?.knockouts?.sf?.m1 || 'TBD'}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Finalist B:</span>
+                        <strong>{selectedUserBracket.predictionsSecondChance?.knockouts?.sf?.m2 || 'TBD'}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>3rd Place:</span>
+                        <strong>{selectedUserBracket.predictionsSecondChance?.knockouts?.third_place || 'TBD'}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Side: Key QF picks */}
+                  <div>
+                    <h4 style={{ color: 'var(--azure)', fontSize: '0.95rem', marginBottom: '0.75rem', textTransform: 'uppercase' }}>Quarterfinalists</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                      {['m1', 'm2', 'm3', 'm4'].map((qfKey, index) => {
+                        const team = selectedUserBracket.predictionsSecondChance?.knockouts?.qf?.[qfKey];
+                        return (
+                          <div key={qfKey} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.2rem 0', fontSize: '0.85rem', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                            <span style={{ color: 'var(--text-muted)' }}>QF {index + 1}:</span>
+                            <strong>{team ? `${getTeamFlag(team)} ${team}` : 'TBD'}</strong>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-              
-              {/* Left Side: Semi-Finalists & Third Place */}
-              <div>
-                <h4 style={{ color: 'var(--emerald)', fontSize: '0.95rem', marginBottom: '0.75rem', textTransform: 'uppercase' }}>Knockout Picks</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Finalist A:</span>
-                    <strong>{selectedUserBracket.predictions?.knockouts?.sf?.m1 || 'TBD'}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Finalist B:</span>
-                    <strong>{selectedUserBracket.predictions?.knockouts?.sf?.m2 || 'TBD'}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>3rd Place:</span>
-                    <strong>{selectedUserBracket.predictions?.knockouts?.third_place || 'TBD'}</strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Side: Group Winners list */}
-              <div>
-                <h4 style={{ color: 'var(--azure)', fontSize: '0.95rem', marginBottom: '0.75rem', textTransform: 'uppercase' }}>Advancing Wildcards</h4>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                  {selectedUserBracket.predictions?.third_place_advancers?.map(team => (
-                    <span key={team} style={{ fontSize: '0.8rem', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--azure)', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-                      {getTeamFlag(team)} {team}
-                    </span>
-                  ))}
-                  {(!selectedUserBracket.predictions?.third_place_advancers || selectedUserBracket.predictions.third_place_advancers.length === 0) && (
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>None selected</span>
-                  )}
-                </div>
-              </div>
-            </div>
 
             <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
               <button className="btn btn-primary" onClick={() => setShowModal(false)}>

@@ -274,6 +274,46 @@ function calculateScore(userPredictions, official, isLockedVal) {
   return score;
 }
 
+function calculateSecondChanceScore(predictionsSecondChance, official, isLockedVal) {
+  if (!isLockedVal) return 0;
+  let score = 0;
+
+  const stages = [
+    { key: 'r32', pts: 20 },
+    { key: 'r16', pts: 40 },
+    { key: 'qf', pts: 80 },
+    { key: 'sf', pts: 160 }
+  ];
+
+  if (predictionsSecondChance?.knockouts && official?.knockouts) {
+    stages.forEach(({ key, pts }) => {
+      const predStage = predictionsSecondChance.knockouts[key] || {};
+      const actStage = official.knockouts[key] || {};
+      Object.keys(predStage).forEach(matchId => {
+        if (official.completed_games?.includes(`${key}_${matchId}`)) {
+          if (predStage[matchId] === actStage[matchId] && actStage[matchId] !== null) {
+            score += pts;
+          }
+        }
+      });
+    });
+
+    if (official.completed_games?.includes('third_place')) {
+      const predThird = predictionsSecondChance.knockouts.third_place;
+      const actThird = official.knockouts.third_place;
+      if (predThird === actThird && actThird !== null) score += 160;
+    }
+
+    if (official.completed_games?.includes('final')) {
+      const predFinal = predictionsSecondChance.knockouts.final;
+      const actFinal = official.knockouts.final;
+      if (predFinal === actFinal && actFinal !== null) score += 320;
+    }
+  }
+
+  return score;
+}
+
 async function run() {
   console.log("Starting automated FIFA 2026 score synchronization...");
 
@@ -412,17 +452,7 @@ async function run() {
             }
           }
         } else {
-          // Check other stages matches
-          const matchKeys = Object.keys(results.knockouts[stage] || {});
-          matchKeys.forEach(matchId => {
-            // We only autocomplete if the game contains both teams
-            // But wait, since we don't have team keys in results.knockouts, we can infer by ESPN team names
-            // If the ESPN match is completed, and it contains homeTeam and awayTeam, and we know this matchId is active
-            // For now, if the team matches one of the expected nodes, we can record it
-            // Let's rely on standard admin entry for knockouts or check if the teams are tied to the node.
-            // A safer automated matching for knockouts: check if winner is playing in a match of this stage.
-            // Actually, we can check if both teams played in this stage
-          });
+          // Automated matching for other knockout stages is handled manually via the admin panel
         }
       });
     }
@@ -487,9 +517,13 @@ async function run() {
 
   const updates = brackets.map(b => {
     const newScore = calculateScore(b.predictions, results, dbResults?.is_locked);
+    const newSecondChanceScore = calculateSecondChanceScore(b.predictions_second_chance, results, dbResults?.is_second_chance_locked);
     return supabase
       .from('brackets')
-      .update({ score: newScore })
+      .update({ 
+        score: newScore,
+        score_second_chance: newSecondChanceScore
+      })
       .eq('id', b.id);
   });
 

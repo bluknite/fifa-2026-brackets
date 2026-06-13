@@ -227,3 +227,139 @@ export function calculateActualStandings(teams, matches, scores) {
 
   return sorted;
 }
+
+/**
+ * Calculates the official 32 advancing teams from group stage results
+ * (Top 2 from each group + 8 best 3rd place teams).
+ */
+export function getOfficialAdvancingTeams(officialResults, groupMatchesList) {
+  if (officialResults && officialResults.r32_teams) {
+    return officialResults.r32_teams;
+  }
+
+  const groups = {};
+  const thirdPlaceTeamsList = [];
+
+  const INITIAL_GROUPS = {
+    A: ['Mexico', 'South Africa', 'Korea Republic', 'Czechia'],
+    B: ['Canada', 'Bosnia and Herzegovina', 'Qatar', 'Switzerland'],
+    C: ['Brazil', 'Morocco', 'Haiti', 'Scotland'],
+    D: ['United States', 'Paraguay', 'Australia', 'Turkiye'],
+    E: ['Curacao', 'Ecuador', 'Germany', 'Ivory Coast'],
+    F: ['Japan', 'Netherlands', 'Sweden', 'Tunisia'],
+    G: ['Belgium', 'Egypt', 'Iran', 'New Zealand'],
+    H: ['Cape Verde', 'Saudi Arabia', 'Spain', 'Uruguay'],
+    I: ['France', 'Iraq', 'Norway', 'Senegal'],
+    J: ['Algeria', 'Argentina', 'Austria', 'Jordan'],
+    K: ['Colombia', 'DR Congo', 'Portugal', 'Uzbekistan'],
+    L: ['Croatia', 'England', 'Ghana', 'Panama']
+  };
+
+  Object.keys(INITIAL_GROUPS).forEach(g => {
+    const groupTeams = INITIAL_GROUPS[g];
+    const matchesOfGroup = groupMatchesList.filter(m => m.group === g);
+    const sorted = calculateActualStandings(groupTeams, matchesOfGroup, officialResults.actual_matches || {});
+    groups[g] = sorted;
+    
+    // The 3rd place team is at index 2
+    thirdPlaceTeamsList.push({
+      team: sorted[2],
+      group: g
+    });
+  });
+
+  // Calculate detailed stats for the 12 third-place teams to rank them
+  const thirdPlaceStats = thirdPlaceTeamsList.map(({ team, group }) => {
+    const matchesOfGroup = groupMatchesList.filter(m => m.group === group);
+    const stats = { team, points: 0, gd: 0, gf: 0, ga: 0 };
+    
+    matchesOfGroup.forEach(m => {
+      const score = officialResults.actual_matches?.[m.id];
+      if (!score || !score.completed) return;
+      
+      const isHome = m.home === team;
+      const isAway = m.away === team;
+      if (!isHome && !isAway) return;
+      
+      const hg = score.homeGoals;
+      const ag = score.awayGoals;
+      const gf = isHome ? hg : ag;
+      const ga = isHome ? ag : hg;
+      
+      stats.gf += gf;
+      stats.ga += ga;
+      if (gf > ga) stats.points += 3;
+      else if (gf === ga) stats.points += 1;
+    });
+    
+    stats.gd = stats.gf - stats.ga;
+    return stats;
+  });
+
+  // Sort third-place teams: Points DESC -> GD DESC -> GF DESC -> Alphabetical fallback
+  thirdPlaceStats.sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.gd !== a.gd) return b.gd - a.gd;
+    if (b.gf !== a.gf) return b.gf - a.gf;
+    return a.team.localeCompare(b.team);
+  });
+
+  // Slice top 8 best 3rd place teams
+  const bestThirdPlaces = thirdPlaceStats.slice(0, 8).map(s => s.team);
+
+  // Build the 32 Round of 32 nodes mapping
+  const r32Teams = {};
+  Object.keys(groups).forEach(g => {
+    r32Teams[`1${g}`] = groups[g][0]; // Winner
+    r32Teams[`2${g}`] = groups[g][1]; // Runner-up
+  });
+  for (let i = 0; i < 8; i++) {
+    r32Teams[`WC${i+1}`] = bestThirdPlaces[i] || null;
+  }
+
+  return r32Teams;
+}
+
+/**
+ * Calculates user's second-chance bracket score based on official results.
+ */
+export function calculateSecondChanceScore(predictionsSecondChance, official, isLockedVal) {
+  if (!isLockedVal) return 0;
+  let score = 0;
+
+  const stages = [
+    { key: 'r32', pts: 20 },
+    { key: 'r16', pts: 40 },
+    { key: 'qf', pts: 80 },
+    { key: 'sf', pts: 160 }
+  ];
+
+  if (predictionsSecondChance?.knockouts && official?.knockouts) {
+    stages.forEach(({ key, pts }) => {
+      const predStage = predictionsSecondChance.knockouts[key] || {};
+      const actStage = official.knockouts[key] || {};
+      Object.keys(predStage).forEach(matchId => {
+        if (official.completed_games?.includes(`${key}_${matchId}`)) {
+          if (predStage[matchId] === actStage[matchId] && actStage[matchId] !== null) {
+            score += pts;
+          }
+        }
+      });
+    });
+
+    if (official.completed_games?.includes('third_place')) {
+      const predThird = predictionsSecondChance.knockouts.third_place;
+      const actThird = official.knockouts.third_place;
+      if (predThird === actThird && actThird !== null) score += 160;
+    }
+
+    if (official.completed_games?.includes('final')) {
+      const predFinal = predictionsSecondChance.knockouts.final;
+      const actFinal = official.knockouts.final;
+      if (predFinal === actFinal && actFinal !== null) score += 320;
+    }
+  }
+
+  return score;
+}
+
