@@ -288,6 +288,33 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
     }
   };
 
+  const handleToggleLock = async () => {
+    try {
+      setSaving(true);
+      setStatusMsg(null);
+      const newLockState = !isLocked;
+
+      const { error } = await supabase
+        .from('tournament_results')
+        .update({
+          is_locked: newLockState,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', 'live');
+
+      if (error) throw error;
+
+      setIsLocked(newLockState);
+      setStatusMsg({ type: 'success', message: `Bracket submissions are now ${newLockState ? 'LOCKED' : 'OPEN'}!` });
+      onResultsUpdated();
+    } catch (err) {
+      console.error(err);
+      setStatusMsg({ type: 'error', message: err.message || 'Error updating lock state.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // --- Reset all user predictions/brackets ---
   const handleResetBrackets = async () => {
     if (!window.confirm("Are you sure you want to RESET all user predictions, brackets, and scores? This action cannot be undone.")) return;
@@ -623,7 +650,8 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <button 
             className={`btn ${isLocked ? 'btn-danger' : 'btn-secondary'}`}
-            onClick={() => setIsLocked(!isLocked)}
+            onClick={handleToggleLock}
+            disabled={saving}
           >
             {isLocked ? '🔓 Open Bracket Submissions' : '🔒 Lock Bracket Submissions'}
           </button>
