@@ -364,9 +364,9 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
     }
   };
 
-  // --- Reset official standing results and lock states back to default seed ---
+  // --- Reset official standing results back to default seed ---
   const handleResetOfficialResults = async () => {
-    if (!window.confirm("Are you sure you want to RESET all official tournament results, matches, and lock states back to default seed? This will also grade all user brackets to 0.")) return;
+    if (!window.confirm("Are you sure you want to RESET all official tournament results and matches back to default seed? This will also grade all user brackets to 0.")) return;
     try {
       setSaving(true);
       setStatusMsg(null);
@@ -399,7 +399,6 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
         .from('tournament_results')
         .update({
           results: defaultResults,
-          is_locked: false,
           updated_at: new Date().toISOString()
         })
         .eq('id', 'live');
@@ -421,7 +420,6 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
       await Promise.all(updates);
 
       setLocalResults(defaultResults);
-      setIsLocked(false);
       setStatusMsg({ type: 'success', message: 'Official results successfully reset and user scores set to 0.' });
       onResultsUpdated();
     } catch (err) {
