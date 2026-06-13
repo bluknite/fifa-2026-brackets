@@ -545,8 +545,7 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
         // Recalculate user brackets scores
         const { data: brackets, error: bracketsError } = await supabase
           .from('brackets')
-          .select('*')
-          .eq('is_submitted', true);
+          .select('*');
         if (bracketsError) throw bracketsError;
 
         const updates = brackets.map(b => {
