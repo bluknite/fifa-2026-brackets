@@ -162,40 +162,6 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
   const [statusMsg, setStatusMsg] = useState(null);
   const [selectedGroupOverride, setSelectedGroupOverride] = useState('A');
 
-  const recalculateGroupStandingsLocal = (currentResults, groupLetter) => {
-    const groupTeams = INITIAL_GROUPS[groupLetter];
-    const groupMatchesList = GROUP_MATCHES.filter(m => m.group === groupLetter);
-    
-    // Check if all 6 matches are completed
-    const allCompleted = groupMatchesList.every(m => 
-      currentResults.actual_matches?.[m.id] && currentResults.actual_matches[m.id].completed
-    );
-
-    const gameKey = `group_${groupLetter}`;
-    const nextCompletedGames = [...(currentResults.completed_games || [])];
-
-    if (allCompleted) {
-      const sorted = calculateStandingsLocal(groupTeams, groupMatchesList, currentResults.actual_matches);
-      if (!currentResults.groups) currentResults.groups = {};
-      currentResults.groups[groupLetter] = sorted;
-      if (!nextCompletedGames.includes(gameKey)) {
-        nextCompletedGames.push(gameKey);
-      }
-    } else {
-      // If not completed, remove from groups list and completed games
-      if (currentResults.groups) {
-        delete currentResults.groups[groupLetter];
-      }
-      const index = nextCompletedGames.indexOf(gameKey);
-      if (index !== -1) {
-        nextCompletedGames.splice(index, 1);
-      }
-    }
-    
-    currentResults.completed_games = nextCompletedGames;
-    setLocalResults({ ...currentResults });
-  };
-
   useEffect(() => {
     if (tournamentResults) {
       setLocalResults(JSON.parse(JSON.stringify(tournamentResults.results || {})));
@@ -691,13 +657,13 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
         </div>
       </div>
 
-      {/* Group Stage Matches Configuration */}
+      {/* Synced Group Stage Standings & Results */}
       <div className="admin-section" style={{ marginTop: '2rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '2rem' }}>
         <h4 style={{ fontSize: '1.2rem', color: 'var(--gold)', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span>⚽</span> Official Group Stage Matches Override
+          <span>⚽</span> Synced Group Stage Standings & Results
         </h4>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-          Manually input scores and lock/unlock specific Group Stage matches. Saving will update the official standings and recalculate user scores.
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+          View real-time official group matches and standings fetched from ESPN. Runs automatically or via manual sync.
         </p>
 
         {/* Group Selector tab/button row */}
@@ -714,99 +680,140 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
           ))}
         </div>
 
-        {/* Match inputs grid */}
-        <div className="admin-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
-          {GROUP_MATCHES.filter(m => m.group === selectedGroupOverride).map(m => {
-            const matchData = localResults.actual_matches?.[m.id] || { homeGoals: 0, awayGoals: 0, completed: false, outcome: null };
-            const isCompleted = matchData.completed;
+        {/* Split grid: Matches list (left) vs Standings (right) */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2rem', flexWrap: 'wrap' }} className="group-editor-row">
+          {/* Matches List */}
+          <div>
+            <h5 style={{ color: 'var(--emerald)', marginBottom: '1rem', fontSize: '0.95rem', fontWeight: 600 }}>Group {selectedGroupOverride} Match Scoreboard</h5>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {GROUP_MATCHES.filter(m => m.group === selectedGroupOverride).map(m => {
+                const matchData = localResults.actual_matches?.[m.id];
+                const isCompleted = matchData?.completed;
 
-            return (
-              <div key={m.id} className="glass-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', background: isCompleted ? 'rgba(16, 185, 129, 0.03)' : 'rgba(255,255,255,0.01)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Fixture ({m.date})</span>
-                  <button
-                    className={`btn ${isCompleted ? 'btn-primary' : 'btn-secondary'}`}
-                    style={{ padding: '0.15rem 0.4rem', fontSize: '0.65rem' }}
-                    onClick={() => {
-                      const updatedMatches = { ...localResults.actual_matches };
-                      const matchState = updatedMatches[m.id] || { homeGoals: 0, awayGoals: 0, completed: false, outcome: null };
-                      
-                      const nextCompleted = !matchState.completed;
-                      
-                      // Calculate outcome
-                      const hg = matchState.homeGoals || 0;
-                      const ag = matchState.awayGoals || 0;
-                      const outcome = hg > ag ? 'home' : (ag > hg ? 'away' : 'draw');
-                      
-                      updatedMatches[m.id] = {
-                        ...matchState,
-                        completed: nextCompleted,
-                        outcome: nextCompleted ? outcome : null
-                      };
+                return (
+                  <div key={m.id} className="match-predict-row" style={{ background: isCompleted ? 'rgba(16, 185, 129, 0.02)' : 'rgba(0,0,0,0.15)' }}>
+                    <div className="match-info-col">
+                      <span className="match-fixture-lbl">Fixture ({m.date})</span>
+                      {isCompleted ? (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 500 }}>
+                          {getTeamFlag(m.home)} {m.home} vs {getTeamFlag(m.away)} {m.away}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          {getTeamFlag(m.home)} {m.home} vs {getTeamFlag(m.away)} {m.away}
+                        </span>
+                      )}
+                    </div>
 
-                      // Run recalculate standings for the group
-                      const nextResults = { ...localResults, actual_matches: updatedMatches };
-                      recalculateGroupStandingsLocal(nextResults, selectedGroupOverride);
-                    }}
-                  >
-                    {isCompleted ? 'Completed ✓' : 'Mark Completed'}
-                  </button>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                  {/* Home Team */}
-                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {getTeamFlag(m.home)} {m.home}
-                    </span>
-                    <input
-                      type="number"
-                      min="0"
-                      className="admin-select"
-                      style={{ marginTop: '0.25rem', padding: '0.3rem', fontSize: '0.85rem' }}
-                      value={matchData.homeGoals ?? ''}
-                      disabled={isCompleted}
-                      onChange={(e) => {
-                        const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
-                        const updatedMatches = { ...localResults.actual_matches };
-                        updatedMatches[m.id] = {
-                          ...(updatedMatches[m.id] || { completed: false, outcome: null }),
-                          homeGoals: val
-                        };
-                        setLocalResults({ ...localResults, actual_matches: updatedMatches });
-                      }}
-                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {isCompleted ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(245, 158, 11, 0.15)', padding: '0.25rem 0.6rem', borderRadius: '4px', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--gold)', fontSize: '0.9rem' }}>
+                            {matchData.homeGoals} - {matchData.awayGoals}
+                          </span>
+                          <span className="status-badge status-submitted" style={{ fontSize: '0.6rem', padding: '0.1rem 0.3rem' }}>Final</span>
+                        </div>
+                      ) : (
+                        <span className="status-badge" style={{ fontSize: '0.6rem', background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)' }}>Scheduled</span>
+                      )}
+                    </div>
                   </div>
+                );
+              })}
+            </div>
+          </div>
 
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', alignSelf: 'flex-end', marginBottom: '0.6rem' }}>vs</span>
+          {/* Calculated Standings */}
+          <div>
+            <h5 style={{ color: 'var(--azure)', marginBottom: '1rem', fontSize: '0.95rem', fontWeight: 600 }}>Official Calculated Standings</h5>
+            
+            <div className="standings-table-container">
+              <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-muted)' }}>
+                    <th style={{ padding: '0.4rem 0.25rem' }}>Pos</th>
+                    <th>Team</th>
+                    <th style={{ textAlign: 'center' }}>P</th>
+                    <th style={{ textAlign: 'center' }}>W</th>
+                    <th style={{ textAlign: 'center' }}>D</th>
+                    <th style={{ textAlign: 'center' }}>L</th>
+                    <th style={{ textAlign: 'center' }}>GD</th>
+                    <th style={{ textAlign: 'right', paddingRight: '0.5rem' }}>Pts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const groupTeams = INITIAL_GROUPS[selectedGroupOverride];
+                    const groupMatchesList = GROUP_MATCHES.filter(m => m.group === selectedGroupOverride);
+                    
+                    // We calculate standing statistics dynamically based on currently synced scores
+                    const sortedTeams = calculateStandingsLocal(groupTeams, groupMatchesList, localResults.actual_matches || {});
+                    
+                    // Pre-calculate team stats
+                    const stats = {};
+                    groupTeams.forEach(t => {
+                      stats[t] = { team: t, played: 0, won: 0, drawn: 0, lost: 0, points: 0, gf: 0, ga: 0, gd: 0 };
+                    });
+                    groupMatchesList.forEach(m => {
+                      const score = localResults.actual_matches?.[m.id];
+                      if (!score || !score.completed) return;
+                      const hg = score.homeGoals || 0;
+                      const ag = score.awayGoals || 0;
+                      stats[m.home].played += 1;
+                      stats[m.away].played += 1;
+                      stats[m.home].gf += hg;
+                      stats[m.home].ga += ag;
+                      stats[m.away].gf += ag;
+                      stats[m.away].ga += hg;
+                      if (hg > ag) {
+                        stats[m.home].won += 1;
+                        stats[m.home].points += 3;
+                        stats[m.away].lost += 1;
+                      } else if (ag > hg) {
+                        stats[m.away].won += 1;
+                        stats[m.away].points += 3;
+                        stats[m.home].lost += 1;
+                      } else {
+                        stats[m.home].drawn += 1;
+                        stats[m.home].points += 1;
+                        stats[m.away].drawn += 1;
+                        stats[m.away].points += 1;
+                      }
+                    });
+                    groupTeams.forEach(t => { stats[t].gd = stats[t].gf - stats[t].ga; });
 
-                  {/* Away Team */}
-                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, alignItems: 'flex-end', textAlign: 'right' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {m.away} {getTeamFlag(m.away)}
-                    </span>
-                    <input
-                      type="number"
-                      min="0"
-                      className="admin-select"
-                      style={{ marginTop: '0.25rem', padding: '0.3rem', fontSize: '0.85rem', textAlign: 'right' }}
-                      value={matchData.awayGoals ?? ''}
-                      disabled={isCompleted}
-                      onChange={(e) => {
-                        const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
-                        const updatedMatches = { ...localResults.actual_matches };
-                        updatedMatches[m.id] = {
-                          ...(updatedMatches[m.id] || { completed: false, outcome: null }),
-                          awayGoals: val
-                        };
-                        setLocalResults({ ...localResults, actual_matches: updatedMatches });
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                    return sortedTeams.map((team, idx) => {
+                      const s = stats[team];
+                      let rankClass = 'rank-elim-4';
+                      if (idx === 0) rankClass = 'rank-adv-1';
+                      else if (idx === 1) rankClass = 'rank-adv-2';
+                      else if (idx === 2) rankClass = 'rank-elim-3';
+
+                      return (
+                        <tr key={team} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', height: '36px' }}>
+                          <td style={{ padding: '0.4rem 0.25rem' }}>
+                            <span className={`team-rank-indicator ${rankClass}`}>{idx + 1}</span>
+                          </td>
+                          <td style={{ fontWeight: 500 }}>
+                            <span style={{ fontSize: '1rem', marginRight: '0.25rem' }}>{getTeamFlag(team)}</span>
+                            {team}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>{s.played}</td>
+                          <td style={{ textAlign: 'center' }}>{s.won}</td>
+                          <td style={{ textAlign: 'center' }}>{s.drawn}</td>
+                          <td style={{ textAlign: 'center' }}>{s.lost}</td>
+                          <td style={{ textAlign: 'center', color: s.gd > 0 ? 'var(--emerald)' : (s.gd < 0 ? 'var(--crimson)' : 'var(--text-muted)') }}>
+                            {s.gd > 0 ? `+${s.gd}` : s.gd}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 'bold', paddingRight: '0.5rem', color: idx < 2 ? 'var(--emerald)' : 'var(--text-primary)' }}>{s.points}</td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
