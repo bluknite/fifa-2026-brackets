@@ -817,171 +817,176 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
         </div>
       </div>
 
-      {/* Knockouts Configuration */}
-      <div className="admin-section" style={{ marginTop: '2rem' }}>
-        <h4 style={{ fontSize: '1.2rem', color: 'var(--emerald)', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>Official Knockout Winners Override</h4>
+      {/* Synced Knockout Results */}
+      <div className="admin-section" style={{ marginTop: '2.5rem' }}>
+        <h4 style={{ fontSize: '1.2rem', color: 'var(--emerald)', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span>🏆</span> Synced Knockout Winners & Champions
+        </h4>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '2rem' }}>
+          View real-time official knockout match winners synced from ESPN. These determine the grading of player knockout prediction paths.
+        </p>
         
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
           
-          {/* Round of 32 Matches */}
+          {/* Round of 32 */}
           <div>
-            <h5 style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>Round of 32 Winners</h5>
-            <div className="admin-grid">
+            <h5 style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Round of 32</h5>
+            <div className="admin-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem' }}>
               {Array.from({ length: 16 }).map((_, idx) => {
                 const matchId = `m${idx + 1}`;
-                const currentWinner = localResults.knockouts?.r32?.[matchId] || '';
+                const winner = localResults.knockouts?.r32?.[matchId];
                 const gameKey = `r32_${matchId}`;
                 const isCompleted = localResults.completed_games?.includes(gameKey);
 
                 return (
-                  <div key={matchId} className="glass-card" style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                      <span>Match {idx + 1} Winner</span>
-                      <button 
-                        style={{ padding: '0.1rem 0.3rem', fontSize: '0.6rem', marginLeft: 'auto' }}
-                        className={`btn ${isCompleted ? 'btn-primary' : 'btn-secondary'}`}
-                        onClick={() => {
-                          const completed = [...(localResults.completed_games || [])];
-                          const next = completed.includes(gameKey) ? completed.filter(k => k !== gameKey) : [...completed, gameKey];
-                          setLocalResults({ ...localResults, completed_games: next });
-                        }}
-                      >
-                        {isCompleted ? 'Locked ✓' : 'Lock'}
-                      </button>
-                    </div>
-                    <select 
-                      className="admin-select"
-                      value={currentWinner}
-                      onChange={(e) => {
-                        const nextKnockouts = { ...localResults.knockouts };
-                        nextKnockouts.r32[matchId] = e.target.value || null;
-                        setLocalResults({ ...localResults, knockouts: nextKnockouts });
-                      }}
-                    >
-                      <option value="">-- No Winner Yet --</option>
-                      {allTeamsList.map(t => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
+                  <div key={matchId} className="glass-card" style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', background: isCompleted ? 'rgba(16, 185, 129, 0.03)' : 'rgba(0,0,0,0.15)' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Match {idx + 1}</span>
+                    {isCompleted && winner ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, color: 'var(--emerald)' }}>
+                        <span>{getTeamFlag(winner)}</span>
+                        <span style={{ fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{winner}</span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>TBD / Sync Pending</span>
+                    )}
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* Round of 16 Matches */}
+          {/* Round of 16 */}
           <div>
-            <h5 style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>Round of 16 Winners</h5>
-            <div className="admin-grid">
+            <h5 style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Round of 16</h5>
+            <div className="admin-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem' }}>
               {Array.from({ length: 8 }).map((_, idx) => {
                 const matchId = `m${idx + 1}`;
-                const currentWinner = localResults.knockouts?.r16?.[matchId] || '';
+                const winner = localResults.knockouts?.r16?.[matchId];
                 const gameKey = `r16_${matchId}`;
                 const isCompleted = localResults.completed_games?.includes(gameKey);
 
                 return (
-                  <div key={matchId} className="glass-card" style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                      <span>Match {16 + idx + 1} Winner</span>
-                      <button 
-                        style={{ padding: '0.1rem 0.3rem', fontSize: '0.6rem', marginLeft: 'auto' }}
-                        className={`btn ${isCompleted ? 'btn-primary' : 'btn-secondary'}`}
-                        onClick={() => {
-                          const completed = [...(localResults.completed_games || [])];
-                          const next = completed.includes(gameKey) ? completed.filter(k => k !== gameKey) : [...completed, gameKey];
-                          setLocalResults({ ...localResults, completed_games: next });
-                        }}
-                      >
-                        {isCompleted ? 'Locked ✓' : 'Lock'}
-                      </button>
-                    </div>
-                    <select 
-                      className="admin-select"
-                      value={currentWinner}
-                      onChange={(e) => {
-                        const nextKnockouts = { ...localResults.knockouts };
-                        nextKnockouts.r16[matchId] = e.target.value || null;
-                        setLocalResults({ ...localResults, knockouts: nextKnockouts });
-                      }}
-                    >
-                      <option value="">-- No Winner Yet --</option>
-                      {allTeamsList.map(t => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
+                  <div key={matchId} className="glass-card" style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', background: isCompleted ? 'rgba(16, 185, 129, 0.03)' : 'rgba(0,0,0,0.15)' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Match {16 + idx + 1}</span>
+                    {isCompleted && winner ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, color: 'var(--emerald)' }}>
+                        <span>{getTeamFlag(winner)}</span>
+                        <span style={{ fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{winner}</span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>TBD / Sync Pending</span>
+                    )}
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* Quarterfinals, Semifinals, Finals */}
+          {/* Quarter-Finals */}
           <div>
-            <h5 style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>Final Rounds Winners</h5>
-            <div className="admin-grid">
+            <h5 style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Quarter-Finals</h5>
+            <div className="admin-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem' }}>
+              {Array.from({ length: 4 }).map((_, idx) => {
+                const matchId = `m${idx + 1}`;
+                const winner = localResults.knockouts?.qf?.[matchId];
+                const gameKey = `qf_${matchId}`;
+                const isCompleted = localResults.completed_games?.includes(gameKey);
+
+                return (
+                  <div key={matchId} className="glass-card" style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', background: isCompleted ? 'rgba(16, 185, 129, 0.03)' : 'rgba(0,0,0,0.15)' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Match {24 + idx + 1}</span>
+                    {isCompleted && winner ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, color: 'var(--emerald)' }}>
+                        <span>{getTeamFlag(winner)}</span>
+                        <span style={{ fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{winner}</span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>TBD / Sync Pending</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Semi-Finals */}
+          <div>
+            <h5 style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Semi-Finals</h5>
+            <div className="admin-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem' }}>
+              {Array.from({ length: 2 }).map((_, idx) => {
+                const matchId = `m${idx + 1}`;
+                const winner = localResults.knockouts?.sf?.[matchId];
+                const gameKey = `sf_${matchId}`;
+                const isCompleted = localResults.completed_games?.includes(gameKey);
+
+                return (
+                  <div key={matchId} className="glass-card" style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', background: isCompleted ? 'rgba(16, 185, 129, 0.03)' : 'rgba(0,0,0,0.15)' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Match {28 + idx + 1}</span>
+                    {isCompleted && winner ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, color: 'var(--emerald)' }}>
+                        <span>{getTeamFlag(winner)}</span>
+                        <span style={{ fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{winner}</span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>TBD / Sync Pending</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Finals */}
+          <div>
+            <h5 style={{ color: 'var(--text-secondary)', marginBottom: '0.75rem', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Championship & Third Place</h5>
+            <div className="admin-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '0.75rem' }}>
+              
               {/* Grand Final Winner */}
-              <div className="glass-card" style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', borderColor: 'var(--gold)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                  <span>Champion (Final)</span>
-                  <button 
-                    style={{ padding: '0.1rem 0.3rem', fontSize: '0.6rem', marginLeft: 'auto' }}
-                    className={`btn ${localResults.completed_games?.includes('final') ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={() => {
-                      const completed = [...(localResults.completed_games || [])];
-                      const next = completed.includes('final') ? completed.filter(k => k !== 'final') : [...completed, 'final'];
-                      setLocalResults({ ...localResults, completed_games: next });
-                    }}
-                  >
-                    {localResults.completed_games?.includes('final') ? 'Locked ✓' : 'Lock'}
-                  </button>
-                </div>
-                <select 
-                  className="admin-select"
-                  value={localResults.knockouts?.final || ''}
-                  onChange={(e) => {
-                    const nextKnockouts = { ...localResults.knockouts };
-                    nextKnockouts.final = e.target.value || null;
-                    setLocalResults({ ...localResults, knockouts: nextKnockouts });
-                  }}
-                >
-                  <option value="">-- No Winner Yet --</option>
-                  {allTeamsList.map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
+              {(() => {
+                const winner = localResults.knockouts?.final;
+                const isCompleted = localResults.completed_games?.includes('final');
+
+                return (
+                  <div className="glass-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', borderColor: isCompleted ? 'var(--gold)' : 'var(--border-light)', background: isCompleted ? 'rgba(245, 158, 11, 0.03)' : 'rgba(0,0,0,0.15)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                      <span>🏆 World Champion</span>
+                      {isCompleted && <span style={{ color: 'var(--gold)' }}>Final Locked</span>}
+                    </div>
+                    {isCompleted && winner ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, color: 'var(--gold)', fontSize: '1.05rem' }}>
+                        <span>{getTeamFlag(winner)}</span>
+                        <span>{winner}</span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>TBD / Sync Pending</span>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Third Place Winner */}
-              <div className="glass-card" style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', borderColor: 'var(--azure)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                  <span>Third Place Match</span>
-                  <button 
-                    style={{ padding: '0.1rem 0.3rem', fontSize: '0.6rem', marginLeft: 'auto' }}
-                    className={`btn ${localResults.completed_games?.includes('third_place') ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={() => {
-                      const completed = [...(localResults.completed_games || [])];
-                      const next = completed.includes('third_place') ? completed.filter(k => k !== 'third_place') : [...completed, 'third_place'];
-                      setLocalResults({ ...localResults, completed_games: next });
-                    }}
-                  >
-                    {localResults.completed_games?.includes('third_place') ? 'Locked ✓' : 'Lock'}
-                  </button>
-                </div>
-                <select 
-                  className="admin-select"
-                  value={localResults.knockouts?.third_place || ''}
-                  onChange={(e) => {
-                    const nextKnockouts = { ...localResults.knockouts };
-                    nextKnockouts.third_place = e.target.value || null;
-                    setLocalResults({ ...localResults, knockouts: nextKnockouts });
-                  }}
-                >
-                  <option value="">-- No Winner Yet --</option>
-                  {allTeamsList.map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
+              {(() => {
+                const winner = localResults.knockouts?.third_place;
+                const isCompleted = localResults.completed_games?.includes('third_place');
+
+                return (
+                  <div className="glass-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', borderColor: isCompleted ? 'var(--azure)' : 'var(--border-light)', background: isCompleted ? 'rgba(59, 130, 246, 0.03)' : 'rgba(0,0,0,0.15)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                      <span>🥉 Third Place Winner</span>
+                      {isCompleted && <span style={{ color: 'var(--azure)' }}>Match Locked</span>}
+                    </div>
+                    {isCompleted && winner ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, color: 'var(--azure)', fontSize: '1.05rem' }}>
+                        <span>{getTeamFlag(winner)}</span>
+                        <span>{winner}</span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>TBD / Sync Pending</span>
+                    )}
+                  </div>
+                );
+              })()}
+
             </div>
           </div>
 
