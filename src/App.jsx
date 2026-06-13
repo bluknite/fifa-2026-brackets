@@ -151,6 +151,8 @@ export default function App() {
   const isAdmin = 
     session?.user?.email === 'siraj-ahmed-cal@gmail.com' || 
     profile?.email === 'siraj-ahmed-cal@gmail.com' ||
+    session?.user?.email === 'syed.s.ahmed@gmail.com' || 
+    profile?.email === 'syed.s.ahmed@gmail.com' ||
     session?.user?.user_metadata?.is_admin === true;
 
   if (loading) {
