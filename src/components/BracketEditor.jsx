@@ -157,7 +157,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
       if (cloned.knockouts.third_place === undefined) cloned.knockouts.third_place = null;
       if (!cloned.third_place_advancers) cloned.third_place_advancers = [];
 
-      if (isLocked) {
+      if (!isLocked) {
         // Auto-align completed group matches from official results
         GROUP_MATCHES.forEach(m => {
           const actual = officialResults?.actual_matches?.[m.id];
@@ -176,7 +176,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
         cloned.groups[g] = standings.map(s => s.team);
       });
 
-      if (isLocked) {
+      if (!isLocked) {
         // Auto-align completed group standings from official results
         Object.keys(INITIAL_GROUPS).forEach(g => {
           if (officialResults?.completed_games?.includes(`group_${g}`)) {
@@ -189,7 +189,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
       const thirdPlaces = getThirdPlaceTeams(cloned.groups);
       cloned.third_place_advancers = cloned.third_place_advancers.filter(team => thirdPlaces.includes(team));
 
-      if (isLocked) {
+      if (!isLocked) {
         // Auto-align completed knockouts from official results
         stagesList.forEach(st => {
           if (cloned.knockouts[st]) {
@@ -220,8 +220,14 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
   const handleMatchPredict = (groupKey, matchId, outcome) => {
     if (isLocked) return;
 
+    // Check if match has already completed in real life
+    const actualMatch = officialResults?.actual_matches?.[matchId];
+    if (actualMatch && actualMatch.completed) {
+      return;
+    }
+
     // Check if group is already completed in official results
-    if (isLocked && officialResults?.completed_games?.includes(`group_${groupKey}`)) {
+    if (officialResults?.completed_games?.includes(`group_${groupKey}`)) {
       return;
     }
 
@@ -258,7 +264,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
   // --- Swap ambiguous tied teams rank control ---
   const swapAmbiguousTeams = (groupKey, index, direction) => {
     if (isLocked) return;
-    if (isLocked && officialResults?.completed_games?.includes(`group_${groupKey}`)) return;
+    if (officialResults?.completed_games?.includes(`group_${groupKey}`)) return;
 
     const groupTeams = INITIAL_GROUPS[groupKey].teams;
     const groupMatchesList = GROUP_MATCHES.filter(m => m.group === groupKey);
@@ -357,7 +363,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
 
   // Load team for specific match node based on propagation
   const getMatchTeams = (stage, matchId) => {
-    const officialWinner = isLocked ? (officialResults?.knockouts?.[stage]?.[matchId] || null) : null;
+    const officialWinner = officialResults?.knockouts?.[stage]?.[matchId] || null;
 
     if (stage === 'r32') {
       const match = r32Matches.find(m => m.id === matchId);
@@ -410,33 +416,24 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
     if (stage === 'final') {
       const teamA = getSelectedWinner('sf', 'm1');
       const teamB = getSelectedWinner('sf', 'm2');
-      return { teamA, teamB, officialWinner: isLocked ? officialResults?.knockouts?.final : null };
+      return { teamA, teamB, officialWinner: officialResults?.knockouts?.final || null };
     }
 
     if (stage === 'third_place') {
       const teamA = getSelectedLoser('sf', 'm1');
       const teamB = getSelectedLoser('sf', 'm2');
-      return { teamA, teamB, officialWinner: isLocked ? officialResults?.knockouts?.third_place : null };
+      return { teamA, teamB, officialWinner: officialResults?.knockouts?.third_place || null };
     }
 
     return { teamA: null, teamB: null };
   };
 
   const getSelectedWinner = (stage, matchId) => {
-    if (isLocked && officialResults?.knockouts?.[stage]?.[matchId]) {
-      return officialResults.knockouts[stage][matchId];
-    }
     return predictions.knockouts?.[stage]?.[matchId] || null;
   };
 
   const getSelectedLoser = (stage, matchId) => {
-    const officialWin = isLocked ? officialResults?.knockouts?.[stage]?.[matchId] : null;
     const { teamA, teamB } = getMatchTeams(stage, matchId);
-    
-    if (officialWin) {
-      return officialWin === teamA ? teamB : teamA;
-    }
-
     const winner = predictions.knockouts?.[stage]?.[matchId];
     if (!winner || !teamA || !teamB) return null;
     return winner === teamA ? teamB : teamA;
@@ -444,11 +441,9 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
 
   // Handle picking a match winner
   const selectWinner = (stage, matchId, teamName) => {
-    if (isLocked || !teamName) return;
-
-    if (isLocked && officialResults?.completed_games?.includes(`${stage}_${matchId}`)) {
-      return; // Locked
-    }
+    const gameKey = matchId ? `${stage}_${matchId}` : stage;
+    const isGameCompleted = officialResults?.completed_games?.includes(gameKey);
+    if (isLocked || isGameCompleted || !teamName) return;
 
     let updated = { ...predictions };
 
@@ -489,7 +484,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
 
       const aligned = JSON.parse(JSON.stringify(predictions));
       
-      if (isLocked) {
+      if (!isLocked) {
         // Auto-align any completed group standings/outcomes in predictions to official results
         Object.keys(INITIAL_GROUPS).forEach(g => {
           if (officialResults?.completed_games?.includes(`group_${g}`)) {
@@ -655,7 +650,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                 predictions.groups[groupKey]
               );
               
-              const isGroupCompleted = isLocked && (officialResults?.completed_games?.includes(`group_${groupKey}`) || false);
+              const isGroupCompleted = officialResults?.completed_games?.includes(`group_${groupKey}`) || false;
 
               return (
                 <div key={groupKey} className="glass-card group-editor-row" style={{ padding: '1.5rem', display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2rem', flexWrap: 'wrap' }}>
@@ -673,16 +668,23 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                       {groupMatchesList.map(m => {
                         // Check if match was completed officially
                         const actualMatch = officialResults?.actual_matches?.[m.id];
-                        const isCompleted = isLocked && actualMatch && actualMatch.completed;
-                        const matchOutcome = isCompleted ? actualMatch.outcome : (predictions.groupMatches?.[m.id] || null);
+                        const isGameCompleted = actualMatch && actualMatch.completed;
+
+                        // While brackets are open, completed games use the actual outcome.
+                        // Once locked, we show the user's prediction outcome.
+                        const matchOutcome = (!isLocked && isGameCompleted)
+                          ? actualMatch.outcome
+                          : (predictions.groupMatches?.[m.id] || null);
+
+                        const isFieldDisabled = isLocked || isGameCompleted;
 
                         return (
                           <div key={m.id} className="match-predict-row">
                             <div className="match-info-col">
                               <span className="match-fixture-lbl">Fixture ({m.date})</span>
-                              {isCompleted && (
-                                <span className="match-actual-score-lbl">
-                                  Actual Score: {actualMatch.homeGoals} - {actualMatch.awayGoals} (Locked)
+                              {isGameCompleted && (
+                                <span className="match-actual-score-lbl" style={{ color: 'var(--gold)' }}>
+                                  Actual Score: {actualMatch.homeGoals} - {actualMatch.awayGoals}
                                 </span>
                               )}
                             </div>
@@ -692,7 +694,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                               <div 
                                 className="team-selector-side home clickable"
                                 onClick={() => {
-                                  if (!(isLocked || isGroupCompleted || isCompleted)) {
+                                  if (!isFieldDisabled) {
                                     handleMatchPredict(groupKey, m.id, 'home');
                                   }
                                 }}
@@ -705,7 +707,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                                     e.stopPropagation();
                                     handleMatchPredict(groupKey, m.id, 'home');
                                   }}
-                                  disabled={isLocked || isGroupCompleted || isCompleted}
+                                  disabled={isFieldDisabled}
                                 >
                                   {getTeamFlag(m.home)}
                                 </button>
@@ -715,7 +717,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                               <button 
                                 className={`draw-predict-btn ${matchOutcome === 'draw' ? 'active draw-win' : ''}`}
                                 onClick={() => handleMatchPredict(groupKey, m.id, 'draw')}
-                                disabled={isLocked || isGroupCompleted || isCompleted}
+                                disabled={isFieldDisabled}
                                 title="Draw"
                               >
                                 Draw
@@ -725,7 +727,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                               <div 
                                 className="team-selector-side away clickable"
                                 onClick={() => {
-                                  if (!(isLocked || isGroupCompleted || isCompleted)) {
+                                  if (!isFieldDisabled) {
                                     handleMatchPredict(groupKey, m.id, 'away');
                                   }
                                 }}
@@ -737,7 +739,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                                     e.stopPropagation();
                                     handleMatchPredict(groupKey, m.id, 'away');
                                   }}
-                                  disabled={isLocked || isGroupCompleted || isCompleted}
+                                  disabled={isFieldDisabled}
                                 >
                                   {getTeamFlag(m.away)}
                                 </button>
@@ -865,16 +867,17 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                 {r32Matches.map((m, idx) => {
                   const { teamA, teamB, officialWinner } = getMatchTeams('r32', m.id);
                   const selectedWinner = getSelectedWinner('r32', m.id);
-                  const isCompleted = isLocked && (officialResults?.completed_games?.includes(`r32_${m.id}`) || false);
+                  const isGameCompleted = officialResults?.completed_games?.includes(`r32_${m.id}`) || false;
+                  const isCompleted = isLocked || isGameCompleted;
 
                   return (
                     <div key={m.id} className="match-card">
-                      <span className="match-number">Match {idx + 1} {isCompleted && '✓'}</span>
+                      <span className="match-number">Match {idx + 1} {isGameCompleted && '✓'}</span>
                       <div className="match-body">
                         <button 
                           className={`match-team ${selectedWinner === teamA && teamA ? 'selected' : ''}`}
                           onClick={() => selectWinner('r32', m.id, teamA)}
-                          disabled={!teamA || isLocked || isCompleted}
+                          disabled={!teamA || isCompleted}
                         >
                           <span className="team-flag">{getTeamFlag(teamA)}</span>
                           {teamA ? <span className="team-name">{teamA}</span> : <span className="team-tbd">TBD</span>}
@@ -882,12 +885,17 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                         <button 
                           className={`match-team ${selectedWinner === teamB && teamB ? 'selected' : ''}`}
                           onClick={() => selectWinner('r32', m.id, teamB)}
-                          disabled={!teamB || isLocked || isCompleted}
+                          disabled={!teamB || isCompleted}
                         >
                           <span className="team-flag">{getTeamFlag(teamB)}</span>
                           {teamB ? <span className="team-name">{teamB}</span> : <span className="team-tbd">TBD</span>}
                         </button>
                       </div>
+                      {isGameCompleted && officialWinner && (
+                        <div className="match-actual-winner-lbl" style={{ fontSize: '0.7rem', color: 'var(--gold)', marginTop: '0.25rem', textAlign: 'center', fontWeight: 'bold' }}>
+                          Actual Winner: {officialWinner} {officialWinner === selectedWinner ? '🟢 (Correct)' : '🔴 (Incorrect)'}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -900,16 +908,17 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                   const matchId = `m${idx + 1}`;
                   const { teamA, teamB, officialWinner } = getMatchTeams('r16', matchId);
                   const selectedWinner = getSelectedWinner('r16', matchId);
-                  const isCompleted = isLocked && (officialResults?.completed_games?.includes(`r16_${matchId}`) || false);
+                  const isGameCompleted = officialResults?.completed_games?.includes(`r16_${matchId}`) || false;
+                  const isCompleted = isLocked || isGameCompleted;
 
                   return (
                     <div key={matchId} className="match-card" style={{ height: '140px', justifyContent: 'center' }}>
-                      <span className="match-number">Match {16 + idx + 1} {isCompleted && '✓'}</span>
+                      <span className="match-number">Match {16 + idx + 1} {isGameCompleted && '✓'}</span>
                       <div className="match-body">
                         <button 
                           className={`match-team ${selectedWinner === teamA && teamA ? 'selected' : ''}`}
                           onClick={() => selectWinner('r16', matchId, teamA)}
-                          disabled={!teamA || isLocked || isCompleted}
+                          disabled={!teamA || isCompleted}
                         >
                           <span className="team-flag">{getTeamFlag(teamA)}</span>
                           {teamA ? <span className="team-name">{teamA}</span> : <span className="team-tbd">TBD</span>}
@@ -917,12 +926,17 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                         <button 
                           className={`match-team ${selectedWinner === teamB && teamB ? 'selected' : ''}`}
                           onClick={() => selectWinner('r16', matchId, teamB)}
-                          disabled={!teamB || isLocked || isCompleted}
+                          disabled={!teamB || isCompleted}
                         >
                           <span className="team-flag">{getTeamFlag(teamB)}</span>
                           {teamB ? <span className="team-name">{teamB}</span> : <span className="team-tbd">TBD</span>}
                         </button>
                       </div>
+                      {isGameCompleted && officialWinner && (
+                        <div className="match-actual-winner-lbl" style={{ fontSize: '0.7rem', color: 'var(--gold)', marginTop: '0.25rem', textAlign: 'center', fontWeight: 'bold' }}>
+                          Actual Winner: {officialWinner} {officialWinner === selectedWinner ? '🟢 (Correct)' : '🔴 (Incorrect)'}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -935,16 +949,17 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                   const matchId = `m${idx + 1}`;
                   const { teamA, teamB, officialWinner } = getMatchTeams('qf', matchId);
                   const selectedWinner = getSelectedWinner('qf', matchId);
-                  const isCompleted = isLocked && (officialResults?.completed_games?.includes(`qf_${matchId}`) || false);
+                  const isGameCompleted = officialResults?.completed_games?.includes(`qf_${matchId}`) || false;
+                  const isCompleted = isLocked || isGameCompleted;
 
                   return (
                     <div key={matchId} className="match-card" style={{ height: '280px', justifyContent: 'center' }}>
-                      <span className="match-number">QF {idx + 1} {isCompleted && '✓'}</span>
+                      <span className="match-number">QF {idx + 1} {isGameCompleted && '✓'}</span>
                       <div className="match-body">
                         <button 
                           className={`match-team ${selectedWinner === teamA && teamA ? 'selected' : ''}`}
                           onClick={() => selectWinner('qf', matchId, teamA)}
-                          disabled={!teamA || isLocked || isCompleted}
+                          disabled={!teamA || isCompleted}
                         >
                           <span className="team-flag">{getTeamFlag(teamA)}</span>
                           {teamA ? <span className="team-name">{teamA}</span> : <span className="team-tbd">TBD</span>}
@@ -952,12 +967,17 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                         <button 
                           className={`match-team ${selectedWinner === teamB && teamB ? 'selected' : ''}`}
                           onClick={() => selectWinner('qf', matchId, teamB)}
-                          disabled={!teamB || isLocked || isCompleted}
+                          disabled={!teamB || isCompleted}
                         >
                           <span className="team-flag">{getTeamFlag(teamB)}</span>
                           {teamB ? <span className="team-name">{teamB}</span> : <span className="team-tbd">TBD</span>}
                         </button>
                       </div>
+                      {isGameCompleted && officialWinner && (
+                        <div className="match-actual-winner-lbl" style={{ fontSize: '0.7rem', color: 'var(--gold)', marginTop: '0.25rem', textAlign: 'center', fontWeight: 'bold' }}>
+                          Actual Winner: {officialWinner} {officialWinner === selectedWinner ? '🟢 (Correct)' : '🔴 (Incorrect)'}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -970,16 +990,17 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                   const matchId = `m${idx + 1}`;
                   const { teamA, teamB, officialWinner } = getMatchTeams('sf', matchId);
                   const selectedWinner = getSelectedWinner('sf', matchId);
-                  const isCompleted = isLocked && (officialResults?.completed_games?.includes(`sf_${matchId}`) || false);
+                  const isGameCompleted = officialResults?.completed_games?.includes(`sf_${matchId}`) || false;
+                  const isCompleted = isLocked || isGameCompleted;
 
                   return (
                     <div key={matchId} className="match-card" style={{ height: '560px', justifyContent: 'center' }}>
-                      <span className="match-number">SF {idx + 1} {isCompleted && '✓'}</span>
+                      <span className="match-number">SF {idx + 1} {isGameCompleted && '✓'}</span>
                       <div className="match-body">
                         <button 
                           className={`match-team ${selectedWinner === teamA && teamA ? 'selected' : ''}`}
                           onClick={() => selectWinner('sf', matchId, teamA)}
-                          disabled={!teamA || isLocked || isCompleted}
+                          disabled={!teamA || isCompleted}
                         >
                           <span className="team-flag">{getTeamFlag(teamA)}</span>
                           {teamA ? <span className="team-name">{teamA}</span> : <span className="team-tbd">TBD</span>}
@@ -987,12 +1008,17 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                         <button 
                           className={`match-team ${selectedWinner === teamB && teamB ? 'selected' : ''}`}
                           onClick={() => selectWinner('sf', matchId, teamB)}
-                          disabled={!teamB || isLocked || isCompleted}
+                          disabled={!teamB || isCompleted}
                         >
                           <span className="team-flag">{getTeamFlag(teamB)}</span>
                           {teamB ? <span className="team-name">{teamB}</span> : <span className="team-tbd">TBD</span>}
                         </button>
                       </div>
+                      {isGameCompleted && officialWinner && (
+                        <div className="match-actual-winner-lbl" style={{ fontSize: '0.7rem', color: 'var(--gold)', marginTop: '0.25rem', textAlign: 'center', fontWeight: 'bold' }}>
+                          Actual Winner: {officialWinner} {officialWinner === selectedWinner ? '🟢 (Correct)' : '🔴 (Incorrect)'}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1005,7 +1031,8 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                   {(() => {
                     const { teamA, teamB, officialWinner } = getMatchTeams('third_place');
                     const selectedWinner = predictions.knockouts?.third_place;
-                    const isCompleted = isLocked && (officialResults?.completed_games?.includes('third_place') || false);
+                    const isGameCompleted = officialResults?.completed_games?.includes('third_place') || false;
+                    const isCompleted = isLocked || isGameCompleted;
 
                     return (
                       <div className="match-card">
@@ -1013,7 +1040,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                           <button 
                             className={`match-team ${selectedWinner === teamA && teamA ? 'selected' : ''}`}
                             onClick={() => selectWinner('third_place', null, teamA)}
-                            disabled={!teamA || isLocked || isCompleted}
+                            disabled={!teamA || isCompleted}
                           >
                             <span className="team-flag">{getTeamFlag(teamA)}</span>
                             {teamA ? <span className="team-name">{teamA}</span> : <span className="team-tbd">TBD</span>}
@@ -1021,12 +1048,17 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                           <button 
                             className={`match-team ${selectedWinner === teamB && teamB ? 'selected' : ''}`}
                             onClick={() => selectWinner('third_place', null, teamB)}
-                            disabled={!teamB || isLocked || isCompleted}
+                            disabled={!teamB || isCompleted}
                           >
                             <span className="team-flag">{getTeamFlag(teamB)}</span>
                             {teamB ? <span className="team-name">{teamB}</span> : <span className="team-tbd">TBD</span>}
                           </button>
                         </div>
+                        {isGameCompleted && officialWinner && (
+                          <div className="match-actual-winner-lbl" style={{ fontSize: '0.7rem', color: 'var(--gold)', marginTop: '0.25rem', textAlign: 'center', fontWeight: 'bold' }}>
+                            Actual Winner: {officialWinner} {officialWinner === selectedWinner ? '🟢 (Correct)' : '🔴 (Incorrect)'}
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -1037,7 +1069,8 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                   {(() => {
                     const { teamA, teamB, officialWinner } = getMatchTeams('final');
                     const selectedWinner = predictions.knockouts?.final;
-                    const isCompleted = isLocked && (officialResults?.completed_games?.includes('final') || false);
+                    const isGameCompleted = officialResults?.completed_games?.includes('final') || false;
+                    const isCompleted = isLocked || isGameCompleted;
 
                     return (
                       <div className="match-card">
@@ -1045,7 +1078,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                           <button 
                             className={`match-team ${selectedWinner === teamA && teamA ? 'selected' : ''}`}
                             onClick={() => selectWinner('final', null, teamA)}
-                            disabled={!teamA || isLocked || isCompleted}
+                            disabled={!teamA || isCompleted}
                           >
                             <span className="team-flag">{getTeamFlag(teamA)}</span>
                             {teamA ? <span className="team-name">{teamA}</span> : <span className="team-tbd">TBD</span>}
@@ -1053,12 +1086,17 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                           <button 
                             className={`match-team ${selectedWinner === teamB && teamB ? 'selected' : ''}`}
                             onClick={() => selectWinner('final', null, teamB)}
-                            disabled={!teamB || isLocked || isCompleted}
+                            disabled={!teamB || isCompleted}
                           >
                             <span className="team-flag">{getTeamFlag(teamB)}</span>
                             {teamB ? <span className="team-name">{teamB}</span> : <span className="team-tbd">TBD</span>}
                           </button>
                         </div>
+                        {isGameCompleted && officialWinner && (
+                          <div className="match-actual-winner-lbl" style={{ fontSize: '0.7rem', color: 'var(--gold)', marginTop: '0.25rem', textAlign: 'center', fontWeight: 'bold' }}>
+                            Actual Winner: {officialWinner} {officialWinner === selectedWinner ? '🟢 (Correct)' : '🔴 (Incorrect)'}
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
