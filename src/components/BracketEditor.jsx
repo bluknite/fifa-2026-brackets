@@ -846,7 +846,9 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
                       <strong style={{ fontSize: '1.2rem', color: 'var(--azure)' }}>Standing Calculator</strong>
                       {isAmbiguous && !isGroupCompleted && (
-                        <span className="unresolved-badge" style={{ animation: 'pulse 1.5s infinite' }}>Ties Require Manual Order</span>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--gold)', fontWeight: 600 }}>
+                          Ties Require Manual Order
+                        </span>
                       )}
                     </div>
 
