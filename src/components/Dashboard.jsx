@@ -55,12 +55,12 @@ export default function Dashboard({ profile, bracket, tournamentResults, onNavig
             </div>
 
             <div style={{ flex: '1', minWidth: '180px', background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-              <span className="stat-label">Submission Status</span>
+              <span className="stat-label">Bracket Status</span>
               <div style={{ marginTop: '0.5rem' }}>
                 {isSubmitted ? (
-                  <span className="status-badge status-submitted">Submitted</span>
+                  <span className="status-badge status-submitted">Saved</span>
                 ) : (
-                  <span className="status-badge status-draft">Draft (Incomplete)</span>
+                  <span className="status-badge status-draft">Not Saved</span>
                 )}
               </div>
             </div>
@@ -83,7 +83,7 @@ export default function Dashboard({ profile, bracket, tournamentResults, onNavig
             </div>
           ) : (
             <div className="info-box">
-              ⚽ You can edit your bracket and save drafts anytime. Remember to click <strong>Submit Bracket</strong> in the editor when you are done! Completed games will automatically lock to their official outcomes.
+              ⚽ You can edit your bracket anytime. Remember to click <strong>Save Bracket</strong> in the editor when you are done! Completed games will automatically lock to their official outcomes.
             </div>
           )}
 

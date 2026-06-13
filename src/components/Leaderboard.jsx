@@ -135,9 +135,9 @@ export default function Leaderboard({ currentUserId }) {
                   </td>
                   <td>
                     {user.isSubmitted ? (
-                      <span className="status-badge status-submitted">Submitted</span>
+                      <span className="status-badge status-submitted">Saved</span>
                     ) : (
-                      <span className="status-badge status-draft">Draft</span>
+                      <span className="status-badge status-draft">Not Saved</span>
                     )}
                   </td>
                   <td style={{ textAlign: 'right', fontWeight: 800, fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: isMe ? 'var(--emerald)' : 'var(--text-primary)' }}>

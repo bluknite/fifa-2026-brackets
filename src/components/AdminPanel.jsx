@@ -642,7 +642,7 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
           <span>🔒</span> Submission Access Lock
         </h3>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-          Toggle this switch to manually freeze all user bracket updates. If locked, users can view their brackets but cannot make draft changes.
+          Toggle this switch to manually freeze all user bracket updates. If locked, users can view their brackets but cannot make changes.
         </p>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>

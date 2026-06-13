@@ -477,7 +477,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
   };
 
   // Save changes to DB
-  const saveBracket = async (submit = false) => {
+  const saveBracket = async () => {
     try {
       setSaving(true);
       setSaveStatus(null);
@@ -521,14 +521,14 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
         .from('brackets')
         .update({
           predictions: aligned,
-          is_submitted: submit || bracket.is_submitted,
+          is_submitted: true,
           updated_at: new Date().toISOString()
         })
         .eq('user_id', profile.id);
 
       if (error) throw error;
 
-      setSaveStatus({ type: 'success', message: submit ? 'Bracket submitted successfully! ⚽' : 'Draft saved successfully!' });
+      setSaveStatus({ type: 'success', message: 'Bracket saved successfully! ⚽' });
       onSaveSuccess();
     } catch (err) {
       console.error(err);
@@ -557,14 +557,9 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
           )}
 
           {!isLocked && (
-            <>
-              <button className="btn btn-secondary" onClick={() => saveBracket(false)} disabled={saving}>
-                Save Draft
-              </button>
-              <button className="btn btn-primary" onClick={() => saveBracket(true)} disabled={saving || selectedThirdPlacesCount !== 8}>
-                Submit Bracket
-              </button>
-            </>
+            <button className="btn btn-primary" onClick={saveBracket} disabled={saving}>
+              Save Bracket
+            </button>
           )}
 
           {isLocked && (
