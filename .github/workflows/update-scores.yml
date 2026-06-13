@@ -2,7 +2,7 @@ name: Automated Tournament Score Sync
 
 on:
   schedule:
-    - cron: '0 */3 * * *' # Run every 3 hours
+    - cron: '*/30 * * * *' # Run every 30 minutes
   workflow_dispatch: # Enable manual run from GitHub UI
 
 jobs:
