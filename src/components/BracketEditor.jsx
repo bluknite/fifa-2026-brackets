@@ -115,6 +115,14 @@ export const getTeamFlag = (teamName) => {
   return '🏳️';
 };
 
+// Get current 3rd place teams list from current predictions
+export const getThirdPlaceTeams = (groupsState) => {
+  return Object.keys(INITIAL_GROUPS).map(g => {
+    const list = groupsState[g] || INITIAL_GROUPS[g].teams;
+    return list[2]; // Index 2 is 3rd place
+  });
+};
+
 export default function BracketEditor({ profile, bracket, tournamentResults, onSaveSuccess }) {
   const [activeSubTab, setActiveSubTab] = useState('groups'); // 'groups', 'knockouts'
   const [predictions, setPredictions] = useState(null);
@@ -124,7 +132,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
   const isLocked = tournamentResults?.is_locked || false;
   const officialResults = tournamentResults?.results || {};
 
-  // Load predictions state from bracket prop or set defaults
+  // Load predictions state from bracket prop or set defaults, and auto-align with official results
   useEffect(() => {
     if (bracket?.predictions) {
       const cloned = JSON.parse(JSON.stringify(bracket.predictions));
@@ -141,17 +149,62 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
       
       // Ensure knockouts structure exists
       if (!cloned.knockouts) cloned.knockouts = {};
-      const stages = ['r32', 'r16', 'qf', 'sf'];
-      stages.forEach(stage => {
+      const stagesList = ['r32', 'r16', 'qf', 'sf'];
+      stagesList.forEach(stage => {
         if (!cloned.knockouts[stage]) cloned.knockouts[stage] = {};
       });
       if (cloned.knockouts.final === undefined) cloned.knockouts.final = null;
       if (cloned.knockouts.third_place === undefined) cloned.knockouts.third_place = null;
       if (!cloned.third_place_advancers) cloned.third_place_advancers = [];
 
+      // Auto-align completed group matches from official results
+      GROUP_MATCHES.forEach(m => {
+        const actual = officialResults?.actual_matches?.[m.id];
+        if (actual && actual.completed) {
+          cloned.groupMatches[m.id] = actual.outcome;
+        }
+      });
+
+      // Recalculate standings for all groups based on the updated match outcomes
+      Object.keys(INITIAL_GROUPS).forEach(g => {
+        const groupTeams = INITIAL_GROUPS[g].teams;
+        const groupMatchesList = GROUP_MATCHES.filter(m => m.group === g);
+        const currentOrder = cloned.groups[g] || [...groupTeams];
+        const { standings } = calculateGroupStandings(groupTeams, groupMatchesList, cloned.groupMatches, currentOrder);
+        cloned.groups[g] = standings.map(s => s.team);
+      });
+
+      // Auto-align completed group standings from official results
+      Object.keys(INITIAL_GROUPS).forEach(g => {
+        if (officialResults?.completed_games?.includes(`group_${g}`)) {
+          cloned.groups[g] = [...(officialResults.groups[g] || [])];
+        }
+      });
+
+      // Auto-update third place eligibility list
+      const thirdPlaces = getThirdPlaceTeams(cloned.groups);
+      cloned.third_place_advancers = cloned.third_place_advancers.filter(team => thirdPlaces.includes(team));
+
+      // Auto-align completed knockouts from official results
+      stagesList.forEach(st => {
+        if (cloned.knockouts[st]) {
+          Object.keys(cloned.knockouts[st]).forEach(mId => {
+            if (officialResults?.completed_games?.includes(`${st}_${mId}`)) {
+              cloned.knockouts[st][mId] = officialResults.knockouts[st][mId];
+            }
+          });
+        }
+      });
+      if (officialResults?.completed_games?.includes('final')) {
+        cloned.knockouts.final = officialResults.knockouts.final;
+      }
+      if (officialResults?.completed_games?.includes('third_place')) {
+        cloned.knockouts.third_place = officialResults.knockouts.third_place;
+      }
+
       setPredictions(cloned);
     }
-  }, [bracket]);
+  }, [bracket, tournamentResults]);
 
   if (!predictions) {
     return <div style={{ textAlign: 'center', padding: '2rem' }}>Formatting predictions...</div>;
@@ -235,13 +288,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
     }
   };
 
-  // Get current 3rd place teams list from current predictions
-  const getThirdPlaceTeams = (groupsState) => {
-    return Object.keys(INITIAL_GROUPS).map(g => {
-      const list = groupsState[g] || INITIAL_GROUPS[g].teams;
-      return list[2]; // Index 2 is 3rd place
-    });
-  };
+  // Note: getThirdPlaceTeams has been moved to top-level helpers
 
   const handleThirdPlaceSelect = (team) => {
     if (isLocked) return;
