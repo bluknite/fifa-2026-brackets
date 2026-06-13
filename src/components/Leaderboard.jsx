@@ -35,7 +35,9 @@ export default function Leaderboard({ currentUserId }) {
 
       // Map profiles and their corresponding scores
       const formatted = data.map(profile => {
-        const userBracket = profile.brackets?.[0] || null;
+        const userBracket = Array.isArray(profile.brackets)
+          ? (profile.brackets[0] || null)
+          : (profile.brackets || null);
         return {
           id: profile.id,
           displayName: profile.display_name || 'Anonymous Player',

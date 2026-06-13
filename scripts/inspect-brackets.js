@@ -29,38 +29,23 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function inspect() {
-  const { data: results, error: resultsError } = await supabase
-    .from('tournament_results')
-    .select('*')
-    .eq('id', 'live')
-    .single();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select(`
+      id,
+      display_name,
+      brackets (
+        id,
+        score,
+        is_submitted
+      )
+    `);
 
-  if (resultsError) {
-    console.error('Error fetching tournament results:', resultsError);
+  if (error) {
+    console.error('Error fetching profiles and brackets:', error);
   } else {
-    console.log('--- TOURNAMENT RESULTS ---');
-    console.log('Is Locked:', results.is_locked);
-    console.log('Completed Games:', results.results?.completed_games);
-    console.log('Actual Matches Count:', Object.keys(results.results?.actual_matches || {}).length);
-    console.log('Actual Matches:', JSON.stringify(results.results?.actual_matches, null, 2));
-  }
-
-  const { data: brackets, error: bracketsError } = await supabase
-    .from('brackets')
-    .select('*');
-
-  if (bracketsError) {
-    console.error('Error fetching brackets:', bracketsError);
-  } else {
-    console.log('\n--- USER BRACKETS ---');
-    brackets.forEach(b => {
-      console.log(`User ID: ${b.user_id}`);
-      console.log(`  Is Submitted: ${b.is_submitted}`);
-      console.log(`  Score: ${b.score}`);
-      console.log(`  Predictions matched matches count:`, Object.keys(b.predictions?.groupMatches || {}).length);
-      console.log(`  Predictions Match Keys:`, Object.keys(b.predictions?.groupMatches || {}));
-      console.log(`  Predictions Match Values:`, JSON.stringify(b.predictions?.groupMatches));
-    });
+    console.log('--- LEADERBOARD RELATIONAL QUERY RESULT ---');
+    console.log(JSON.stringify(data, null, 2));
   }
 }
 
