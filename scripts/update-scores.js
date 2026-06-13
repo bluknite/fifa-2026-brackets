@@ -476,7 +476,8 @@ async function run() {
     console.log("Recalculating scores for all user brackets...");
     const { data: brackets, error: bracketsError } = await supabase
       .from('brackets')
-      .select('*');
+      .select('*')
+      .eq('is_submitted', true);
 
     if (bracketsError) {
       console.error("Error loading user brackets:", bracketsError);

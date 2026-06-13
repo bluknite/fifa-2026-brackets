@@ -243,50 +243,6 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
     return score;
   };
 
-  const handleSaveChanges = async () => {
-    try {
-      setSaving(true);
-      setStatusMsg(null);
-
-      // 1. Save results to tournament_results
-      const { error: resultsError } = await supabase
-        .from('tournament_results')
-        .update({
-          results: localResults,
-          is_locked: isLocked,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', 'live');
-
-      if (resultsError) throw resultsError;
-
-      // 2. Load all brackets to score them
-      const { data: brackets, error: bracketsError } = await supabase
-        .from('brackets')
-        .select('*');
-
-      if (bracketsError) throw bracketsError;
-
-      // 3. Batch recalculate scores and update DB
-      const updates = brackets.map(b => {
-        const newScore = calculateScore(b.predictions, localResults);
-        return supabase
-          .from('brackets')
-          .update({ score: newScore })
-          .eq('id', b.id);
-      });
-
-      await Promise.all(updates);
-
-      setStatusMsg({ type: 'success', message: 'Official standings saved and all user scores successfully recalculated!' });
-      onResultsUpdated();
-    } catch (err) {
-      console.error('Admin panel save error:', err);
-      setStatusMsg({ type: 'error', message: err.message || 'Error saving changes.' });
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleToggleLock = async () => {
     try {
@@ -589,7 +545,8 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
         // Recalculate user brackets scores
         const { data: brackets, error: bracketsError } = await supabase
           .from('brackets')
-          .select('*');
+          .select('*')
+          .eq('is_submitted', true);
         if (bracketsError) throw bracketsError;
 
         const updates = brackets.map(b => {
@@ -630,9 +587,6 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
             </div>
           )}
 
-          <button className="btn btn-primary" onClick={handleSaveChanges} disabled={saving}>
-            {saving ? 'Updating...' : 'Save & Grade All Brackets'}
-          </button>
         </div>
       </div>
 
