@@ -117,6 +117,10 @@ export const getTeamFlag = (teamName) => {
   return '🏳️';
 };
 
+const R16_DATES = ['July 4', 'July 4', 'July 5', 'July 5', 'July 6', 'July 6', 'July 7', 'July 7'];
+const QF_DATES = ['July 9', 'July 9', 'July 10', 'July 11'];
+const SF_DATES = ['July 14', 'July 15'];
+
 // Get current 3rd place teams list from current predictions
 // eslint-disable-next-line react-refresh/only-export-components
 export const getThirdPlaceTeams = (groupsState) => {
@@ -612,22 +616,22 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
 
   // Defines matches in Round of 32
   const r32Matches = [
-    { id: 'm1', teamAKey: '1A', teamBKey: 'WC1' },
-    { id: 'm2', teamAKey: '2B', teamBKey: '2C' },
-    { id: 'm3', teamAKey: '1B', teamBKey: 'WC2' },
-    { id: 'm4', teamAKey: '1C', teamBKey: '2D' },
-    { id: 'm5', teamAKey: '1D', teamBKey: 'WC3' },
-    { id: 'm6', teamAKey: '2E', teamBKey: '2F' },
-    { id: 'm7', teamAKey: '1E', teamBKey: 'WC4' },
-    { id: 'm8', teamAKey: '1F', teamBKey: '2A' },
-    { id: 'm9', teamAKey: '1G', teamBKey: 'WC5' },
-    { id: 'm10', teamAKey: '2H', teamBKey: '2I' },
-    { id: 'm11', teamAKey: '1H', teamBKey: 'WC6' },
-    { id: 'm12', teamAKey: '1I', teamBKey: '2J' },
-    { id: 'm13', teamAKey: '1J', teamBKey: 'WC7' },
-    { id: 'm14', teamAKey: '2K', teamBKey: '2L' },
-    { id: 'm15', teamAKey: '1K', teamBKey: 'WC8' },
-    { id: 'm16', teamAKey: '1L', teamBKey: '2G' }
+    { id: 'm1', teamAKey: '1A', teamBKey: 'WC1', date: 'June 28' },
+    { id: 'm2', teamAKey: '2B', teamBKey: '2C', date: 'June 28' },
+    { id: 'm3', teamAKey: '1B', teamBKey: 'WC2', date: 'June 29' },
+    { id: 'm4', teamAKey: '1C', teamBKey: '2D', date: 'June 29' },
+    { id: 'm5', teamAKey: '1D', teamBKey: 'WC3', date: 'June 29' },
+    { id: 'm6', teamAKey: '2E', teamBKey: '2F', date: 'June 30' },
+    { id: 'm7', teamAKey: '1E', teamBKey: 'WC4', date: 'June 30' },
+    { id: 'm8', teamAKey: '1F', teamBKey: '2A', date: 'June 30' },
+    { id: 'm9', teamAKey: '1G', teamBKey: 'WC5', date: 'July 1' },
+    { id: 'm10', teamAKey: '2H', teamBKey: '2I', date: 'July 1' },
+    { id: 'm11', teamAKey: '1H', teamBKey: 'WC6', date: 'July 1' },
+    { id: 'm12', teamAKey: '1I', teamBKey: '2J', date: 'July 2' },
+    { id: 'm13', teamAKey: '1J', teamBKey: 'WC7', date: 'July 2' },
+    { id: 'm14', teamAKey: '2K', teamBKey: '2L', date: 'July 2' },
+    { id: 'm15', teamAKey: '1K', teamBKey: 'WC8', date: 'July 3' },
+    { id: 'm16', teamAKey: '1L', teamBKey: '2G', date: 'July 3' }
   ];
 
   // Load team for specific match node based on propagation
@@ -930,13 +934,8 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
 
                         return (
                           <div key={m.id} className={`match-predict-row ${predictionClass}`}>
-                            <div className="match-info-col">
+                            <div className="match-header-row">
                               <span className="match-fixture-lbl">Fixture ({m.date})</span>
-                              {isGameCompleted && (
-                                <span className="match-actual-score-lbl" style={{ color: 'var(--gold)' }}>
-                                  Actual Score: {actualMatch.homeGoals} - {actualMatch.awayGoals}
-                                </span>
-                              )}
                             </div>
 
                             <div className="match-selector-wrapper">
@@ -996,6 +995,13 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                                 <span className="team-selector-name">{m.away}</span>
                               </div>
                             </div>
+                            {isGameCompleted && (
+                              <div className="match-footer-row">
+                                <span className="match-actual-score-lbl" style={{ color: 'var(--gold)' }}>
+                                  Actual Score: {actualMatch.homeGoals} - {actualMatch.awayGoals}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -1128,7 +1134,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
 
                   return (
                     <div key={m.id} className="match-card">
-                      <span className="match-number">Match {idx + 1} {isGameCompleted && '✓'}</span>
+                      <span className="match-number">Match {idx + 1} ({m.date}) {isGameCompleted && '✓'}</span>
                       <div className={`match-body ${predictionClass}`}>
                         <button 
                           className={`match-team ${selectedWinner === teamA && teamA ? 'selected' : ''}`}
@@ -1173,7 +1179,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
 
                   return (
                     <div key={matchId} className="match-card" style={{ height: '140px', justifyContent: 'center' }}>
-                      <span className="match-number">Match {16 + idx + 1} {isGameCompleted && '✓'}</span>
+                      <span className="match-number">Match {16 + idx + 1} ({R16_DATES[idx]}) {isGameCompleted && '✓'}</span>
                       <div className={`match-body ${predictionClass}`}>
                         <button 
                           className={`match-team ${selectedWinner === teamA && teamA ? 'selected' : ''}`}
@@ -1218,7 +1224,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
 
                   return (
                     <div key={matchId} className="match-card" style={{ height: '280px', justifyContent: 'center' }}>
-                      <span className="match-number">QF {idx + 1} {isGameCompleted && '✓'}</span>
+                      <span className="match-number">QF {idx + 1} ({QF_DATES[idx]}) {isGameCompleted && '✓'}</span>
                       <div className={`match-body ${predictionClass}`}>
                         <button 
                           className={`match-team ${selectedWinner === teamA && teamA ? 'selected' : ''}`}
@@ -1263,7 +1269,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
 
                   return (
                     <div key={matchId} className="match-card" style={{ height: '560px', justifyContent: 'center' }}>
-                      <span className="match-number">SF {idx + 1} {isGameCompleted && '✓'}</span>
+                      <span className="match-number">SF {idx + 1} ({SF_DATES[idx]}) {isGameCompleted && '✓'}</span>
                       <div className={`match-body ${predictionClass}`}>
                         <button 
                           className={`match-team ${selectedWinner === teamA && teamA ? 'selected' : ''}`}
@@ -1295,7 +1301,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
               {/* FINALS & CHAMPION */}
               <div className="bracket-column finals-box" style={{ justifyContent: 'center' }}>
                 <div>
-                  <div className="round-header">3rd Place Match</div>
+                  <div className="round-header">3rd Place Match (July 18)</div>
                   {(() => {
                     const { teamA, teamB, officialWinner } = getMatchTeams('third_place');
                     const selectedWinner = activePredictions.knockouts?.third_place;
@@ -1337,7 +1343,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                 </div>
 
                 <div>
-                  <div className="round-header">Grand Final</div>
+                  <div className="round-header">Grand Final (July 19)</div>
                   {(() => {
                     const { teamA, teamB, officialWinner } = getMatchTeams('final');
                     const selectedWinner = activePredictions.knockouts?.final;

@@ -206,6 +206,17 @@ export default function App() {
             )}
           </nav>
 
+          <select
+            className="mobile-nav-select"
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value)}
+          >
+            <option value="dashboard">Dashboard</option>
+            <option value="predictions">My Bracket</option>
+            <option value="leaderboard">Leaderboard</option>
+            {isAdmin && <option value="admin">Admin</option>}
+          </select>
+
           <div className="user-profile">
             <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }} className="desktop-only">
               {profile?.display_name || session.user.email}
