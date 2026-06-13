@@ -213,6 +213,91 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
     }
   }, [bracket, tournamentResults]);
 
+  // Auto-save predictions when dirty
+  useEffect(() => {
+    if (!predictions || !bracket || !isDirtyRef.current) return;
+
+    // Set status to "Saving..."
+    setSaveStatus({ type: 'info', message: 'Saving changes...' });
+
+    const timer = setTimeout(async () => {
+      try {
+        setSaving(true);
+        const aligned = JSON.parse(JSON.stringify(predictions));
+
+        if (!isLocked) {
+          // Auto-align completed group matches from official results
+          GROUP_MATCHES.forEach(m => {
+            const actual = officialResults?.actual_matches?.[m.id];
+            if (actual && actual.completed) {
+              aligned.groupMatches[m.id] = actual.outcome;
+            }
+          });
+
+          // Recalculate standings for all groups based on the updated match outcomes
+          Object.keys(INITIAL_GROUPS).forEach(g => {
+            const groupTeams = INITIAL_GROUPS[g].teams;
+            const groupMatchesList = GROUP_MATCHES.filter(m => m.group === g);
+            const currentOrder = aligned.groups[g] || [...groupTeams];
+            const { standings } = calculateGroupStandings(groupTeams, groupMatchesList, aligned.groupMatches, currentOrder);
+            aligned.groups[g] = standings.map(s => s.team);
+          });
+
+          // Auto-align completed group standings from official results
+          Object.keys(INITIAL_GROUPS).forEach(g => {
+            if (officialResults?.completed_games?.includes(`group_${g}`)) {
+              aligned.groups[g] = [...(officialResults.groups[g] || [])];
+            }
+          });
+
+          // Auto-update third place eligibility list
+          const thirdPlaces = getThirdPlaceTeams(aligned.groups);
+          aligned.third_place_advancers = aligned.third_place_advancers.filter(team => thirdPlaces.includes(team));
+
+          // Auto-align completed knockouts from official results
+          const stagesList = ['r32', 'r16', 'qf', 'sf'];
+          stagesList.forEach(st => {
+            if (aligned.knockouts[st]) {
+              Object.keys(aligned.knockouts[st]).forEach(mId => {
+                if (officialResults?.completed_games?.includes(`${st}_${mId}`)) {
+                  aligned.knockouts[st][mId] = officialResults.knockouts[st][mId];
+                }
+              });
+            }
+          });
+          if (officialResults?.completed_games?.includes('final')) {
+            aligned.knockouts.final = officialResults.knockouts.final;
+          }
+          if (officialResults?.completed_games?.includes('third_place')) {
+            aligned.knockouts.third_place = officialResults.knockouts.third_place;
+          }
+        }
+
+        const { error } = await supabase
+          .from('brackets')
+          .update({
+            predictions: aligned,
+            is_submitted: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', profile.id);
+
+        if (error) throw error;
+
+        isDirtyRef.current = false; // Reset dirty flag
+        setSaveStatus({ type: 'success', message: 'All changes saved automatically! ⚽' });
+        onSaveSuccess();
+      } catch (err) {
+        console.error('Auto-save error:', err);
+        setSaveStatus({ type: 'error', message: err.message || 'Auto-save failed.' });
+      } finally {
+        setSaving(false);
+      }
+    }, 1000); // Debounce for 1 second
+
+    return () => clearTimeout(timer);
+  }, [predictions]);
+
   if (!predictions) {
     return <div style={{ textAlign: 'center', padding: '2rem' }}>Formatting predictions...</div>;
   }
@@ -481,90 +566,6 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
     setPredictions(updated);
   };
 
-  // Auto-save predictions when dirty
-  useEffect(() => {
-    if (!predictions || !bracket || !isDirtyRef.current) return;
-
-    // Set status to "Saving..."
-    setSaveStatus({ type: 'info', message: 'Saving changes...' });
-
-    const timer = setTimeout(async () => {
-      try {
-        setSaving(true);
-        const aligned = JSON.parse(JSON.stringify(predictions));
-
-        if (!isLocked) {
-          // Auto-align completed group matches from official results
-          GROUP_MATCHES.forEach(m => {
-            const actual = officialResults?.actual_matches?.[m.id];
-            if (actual && actual.completed) {
-              aligned.groupMatches[m.id] = actual.outcome;
-            }
-          });
-
-          // Recalculate standings for all groups based on the updated match outcomes
-          Object.keys(INITIAL_GROUPS).forEach(g => {
-            const groupTeams = INITIAL_GROUPS[g].teams;
-            const groupMatchesList = GROUP_MATCHES.filter(m => m.group === g);
-            const currentOrder = aligned.groups[g] || [...groupTeams];
-            const { standings } = calculateGroupStandings(groupTeams, groupMatchesList, aligned.groupMatches, currentOrder);
-            aligned.groups[g] = standings.map(s => s.team);
-          });
-
-          // Auto-align completed group standings from official results
-          Object.keys(INITIAL_GROUPS).forEach(g => {
-            if (officialResults?.completed_games?.includes(`group_${g}`)) {
-              aligned.groups[g] = [...(officialResults.groups[g] || [])];
-            }
-          });
-
-          // Auto-update third place eligibility list
-          const thirdPlaces = getThirdPlaceTeams(aligned.groups);
-          aligned.third_place_advancers = aligned.third_place_advancers.filter(team => thirdPlaces.includes(team));
-
-          // Auto-align completed knockouts from official results
-          const stagesList = ['r32', 'r16', 'qf', 'sf'];
-          stagesList.forEach(st => {
-            if (aligned.knockouts[st]) {
-              Object.keys(aligned.knockouts[st]).forEach(mId => {
-                if (officialResults?.completed_games?.includes(`${st}_${mId}`)) {
-                  aligned.knockouts[st][mId] = officialResults.knockouts[st][mId];
-                }
-              });
-            }
-          });
-          if (officialResults?.completed_games?.includes('final')) {
-            aligned.knockouts.final = officialResults.knockouts.final;
-          }
-          if (officialResults?.completed_games?.includes('third_place')) {
-            aligned.knockouts.third_place = officialResults.knockouts.third_place;
-          }
-        }
-
-        const { error } = await supabase
-          .from('brackets')
-          .update({
-            predictions: aligned,
-            is_submitted: true,
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', profile.id);
-
-        if (error) throw error;
-
-        isDirtyRef.current = false; // Reset dirty flag
-        setSaveStatus({ type: 'success', message: 'All changes saved automatically! ⚽' });
-        onSaveSuccess();
-      } catch (err) {
-        console.error('Auto-save error:', err);
-        setSaveStatus({ type: 'error', message: err.message || 'Auto-save failed.' });
-      } finally {
-        setSaving(false);
-      }
-    }, 1000); // Debounce for 1 second
-
-    return () => clearTimeout(timer);
-  }, [predictions]);
 
   const getThirdPlaceList = getThirdPlaceTeams(predictions.groups);
   const selectedThirdPlacesCount = predictions.third_place_advancers?.length || 0;
