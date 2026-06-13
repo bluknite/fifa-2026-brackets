@@ -764,8 +764,15 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
     const cleanUpTree = (clearedTeam) => {
       if (!clearedTeam) return;
       const k = updated.knockouts;
-      const stages = ['r16', 'qf', 'sf'];
-      stages.forEach(st => {
+      let futureStages = [];
+      if (stage === 'r32') {
+        futureStages = ['r16', 'qf', 'sf'];
+      } else if (stage === 'r16') {
+        futureStages = ['qf', 'sf'];
+      } else if (stage === 'qf') {
+        futureStages = ['sf'];
+      }
+      futureStages.forEach(st => {
         Object.keys(k[st] || {}).forEach(mId => {
           if (k[st][mId] === clearedTeam) k[st][mId] = null;
         });
