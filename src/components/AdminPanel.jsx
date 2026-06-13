@@ -103,11 +103,98 @@ const GROUP_MATCHES = [
   {"id": "L_m6", "group": "L", "home": "Croatia", "away": "Ghana", "date": "June 27"}
 ];
 
+// Group Standings FIFA Rules Calculator
+const calculateStandingsLocal = (teams, matches, scores) => {
+  const stats = {};
+  teams.forEach(t => {
+    stats[t] = { team: t, played: 0, won: 0, drawn: 0, lost: 0, points: 0, gf: 0, ga: 0, gd: 0 };
+  });
+  matches.forEach(m => {
+    const score = scores[m.id];
+    if (!score || !score.completed) return;
+    const hg = score.homeGoals;
+    const ag = score.awayGoals;
+    stats[m.home].played += 1;
+    stats[m.away].played += 1;
+    stats[m.home].gf += hg;
+    stats[m.home].ga += ag;
+    stats[m.away].gf += ag;
+    stats[m.away].ga += hg;
+    if (hg > ag) {
+      stats[m.home].won += 1;
+      stats[m.home].points += 3;
+      stats[m.away].lost += 1;
+    } else if (ag > hg) {
+      stats[m.away].won += 1;
+      stats[m.away].points += 3;
+      stats[m.home].lost += 1;
+    } else {
+      stats[m.home].drawn += 1;
+      stats[m.home].points += 1;
+      stats[m.away].drawn += 1;
+      stats[m.away].points += 1;
+    }
+  });
+  teams.forEach(t => { stats[t].gd = stats[t].gf - stats[t].ga; });
+  const sorted = [...teams];
+  sorted.sort((a, b) => {
+    if (stats[b].points !== stats[a].points) return stats[b].points - stats[a].points;
+    if (stats[b].gd !== stats[a].gd) return stats[b].gd - stats[a].gd;
+    if (stats[b].gf !== stats[a].gf) return stats[b].gf - stats[a].gf;
+    const h2hMatch = matches.find(m => (m.home === a && m.away === b) || (m.home === b && m.away === a));
+    const h2hScore = h2hMatch ? scores[h2hMatch.id] : null;
+    if (h2hScore && h2hScore.completed) {
+      const aIsHome = h2hMatch.home === a;
+      const hg = h2hScore.homeGoals;
+      const ag = h2hScore.awayGoals;
+      if (hg > ag) return aIsHome ? -1 : 1;
+      else if (ag > hg) return aIsHome ? 1 : -1;
+    }
+    return a.localeCompare(b);
+  });
+  return sorted;
+};
+
 export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
   const [localResults, setLocalResults] = useState(null);
   const [isLocked, setIsLocked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [statusMsg, setStatusMsg] = useState(null);
+  const [selectedGroupOverride, setSelectedGroupOverride] = useState('A');
+
+  const recalculateGroupStandingsLocal = (currentResults, groupLetter) => {
+    const groupTeams = INITIAL_GROUPS[groupLetter];
+    const groupMatchesList = GROUP_MATCHES.filter(m => m.group === groupLetter);
+    
+    // Check if all 6 matches are completed
+    const allCompleted = groupMatchesList.every(m => 
+      currentResults.actual_matches?.[m.id] && currentResults.actual_matches[m.id].completed
+    );
+
+    const gameKey = `group_${groupLetter}`;
+    const nextCompletedGames = [...(currentResults.completed_games || [])];
+
+    if (allCompleted) {
+      const sorted = calculateStandingsLocal(groupTeams, groupMatchesList, currentResults.actual_matches);
+      if (!currentResults.groups) currentResults.groups = {};
+      currentResults.groups[groupLetter] = sorted;
+      if (!nextCompletedGames.includes(gameKey)) {
+        nextCompletedGames.push(gameKey);
+      }
+    } else {
+      // If not completed, remove from groups list and completed games
+      if (currentResults.groups) {
+        delete currentResults.groups[groupLetter];
+      }
+      const index = nextCompletedGames.indexOf(gameKey);
+      if (index !== -1) {
+        nextCompletedGames.splice(index, 1);
+      }
+    }
+    
+    currentResults.completed_games = nextCompletedGames;
+    setLocalResults({ ...currentResults });
+  };
 
   useEffect(() => {
     if (tournamentResults) {
@@ -421,58 +508,6 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
 
       let updatedCount = 0;
 
-      // Group Standings FIFA Rules Calculator
-      const calculateStandingsLocal = (teams, matches, scores) => {
-        const stats = {};
-        teams.forEach(t => {
-          stats[t] = { team: t, played: 0, won: 0, drawn: 0, lost: 0, points: 0, gf: 0, ga: 0, gd: 0 };
-        });
-        matches.forEach(m => {
-          const score = scores[m.id];
-          if (!score || !score.completed) return;
-          const hg = score.homeGoals;
-          const ag = score.awayGoals;
-          stats[m.home].played += 1;
-          stats[m.away].played += 1;
-          stats[m.home].gf += hg;
-          stats[m.home].ga += ag;
-          stats[m.away].gf += ag;
-          stats[m.away].ga += hg;
-          if (hg > ag) {
-            stats[m.home].won += 1;
-            stats[m.home].points += 3;
-            stats[m.away].lost += 1;
-          } else if (ag > hg) {
-            stats[m.away].won += 1;
-            stats[m.away].points += 3;
-            stats[m.home].lost += 1;
-          } else {
-            stats[m.home].drawn += 1;
-            stats[m.home].points += 1;
-            stats[m.away].drawn += 1;
-            stats[m.away].points += 1;
-          }
-        });
-        teams.forEach(t => { stats[t].gd = stats[t].gf - stats[t].ga; });
-        const sorted = [...teams];
-        sorted.sort((a, b) => {
-          if (stats[b].points !== stats[a].points) return stats[b].points - stats[a].points;
-          if (stats[b].gd !== stats[a].gd) return stats[b].gd - stats[a].gd;
-          if (stats[b].gf !== stats[a].gf) return stats[b].gf - stats[a].gf;
-          const h2hMatch = matches.find(m => (m.home === a && m.away === b) || (m.home === b && m.away === a));
-          const h2hScore = h2hMatch ? scores[h2hMatch.id] : null;
-          if (h2hScore && h2hScore.completed) {
-            const aIsHome = h2hMatch.home === a;
-            const hg = h2hScore.homeGoals;
-            const ag = h2hScore.awayGoals;
-            if (hg > ag) return aIsHome ? -1 : 1;
-            else if (ag > hg) return aIsHome ? 1 : -1;
-          }
-          return a.localeCompare(b);
-        });
-        return sorted;
-      };
-
       matchesFound.forEach(event => {
         const completed = event.status?.type?.completed || false;
         if (!completed) return;
@@ -653,6 +688,125 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
           <button className="btn btn-danger" onClick={handleResetOfficialResults} disabled={saving} style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--crimson)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
             ⚠️ Reset Official Results to Seed
           </button>
+        </div>
+      </div>
+
+      {/* Group Stage Matches Configuration */}
+      <div className="admin-section" style={{ marginTop: '2rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '2rem' }}>
+        <h4 style={{ fontSize: '1.2rem', color: 'var(--gold)', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span>⚽</span> Official Group Stage Matches Override
+        </h4>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+          Manually input scores and lock/unlock specific Group Stage matches. Saving will update the official standings and recalculate user scores.
+        </p>
+
+        {/* Group Selector tab/button row */}
+        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+          {Object.keys(INITIAL_GROUPS).map(groupKey => (
+            <button
+              key={groupKey}
+              className={`btn ${selectedGroupOverride === groupKey ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+              onClick={() => setSelectedGroupOverride(groupKey)}
+            >
+              Group {groupKey}
+            </button>
+          ))}
+        </div>
+
+        {/* Match inputs grid */}
+        <div className="admin-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
+          {GROUP_MATCHES.filter(m => m.group === selectedGroupOverride).map(m => {
+            const matchData = localResults.actual_matches?.[m.id] || { homeGoals: 0, awayGoals: 0, completed: false, outcome: null };
+            const isCompleted = matchData.completed;
+
+            return (
+              <div key={m.id} className="glass-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', background: isCompleted ? 'rgba(16, 185, 129, 0.03)' : 'rgba(255,255,255,0.01)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Fixture ({m.date})</span>
+                  <button
+                    className={`btn ${isCompleted ? 'btn-primary' : 'btn-secondary'}`}
+                    style={{ padding: '0.15rem 0.4rem', fontSize: '0.65rem' }}
+                    onClick={() => {
+                      const updatedMatches = { ...localResults.actual_matches };
+                      const matchState = updatedMatches[m.id] || { homeGoals: 0, awayGoals: 0, completed: false, outcome: null };
+                      
+                      const nextCompleted = !matchState.completed;
+                      
+                      // Calculate outcome
+                      const hg = matchState.homeGoals || 0;
+                      const ag = matchState.awayGoals || 0;
+                      const outcome = hg > ag ? 'home' : (ag > hg ? 'away' : 'draw');
+                      
+                      updatedMatches[m.id] = {
+                        ...matchState,
+                        completed: nextCompleted,
+                        outcome: nextCompleted ? outcome : null
+                      };
+
+                      // Run recalculate standings for the group
+                      const nextResults = { ...localResults, actual_matches: updatedMatches };
+                      recalculateGroupStandingsLocal(nextResults, selectedGroupOverride);
+                    }}
+                  >
+                    {isCompleted ? 'Completed ✓' : 'Mark Completed'}
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                  {/* Home Team */}
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {getTeamFlag(m.home)} {m.home}
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      className="admin-select"
+                      style={{ marginTop: '0.25rem', padding: '0.3rem', fontSize: '0.85rem' }}
+                      value={matchData.homeGoals ?? ''}
+                      disabled={isCompleted}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                        const updatedMatches = { ...localResults.actual_matches };
+                        updatedMatches[m.id] = {
+                          ...(updatedMatches[m.id] || { completed: false, outcome: null }),
+                          homeGoals: val
+                        };
+                        setLocalResults({ ...localResults, actual_matches: updatedMatches });
+                      }}
+                    />
+                  </div>
+
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', alignSelf: 'flex-end', marginBottom: '0.6rem' }}>vs</span>
+
+                  {/* Away Team */}
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, alignItems: 'flex-end', textAlign: 'right' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {m.away} {getTeamFlag(m.away)}
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      className="admin-select"
+                      style={{ marginTop: '0.25rem', padding: '0.3rem', fontSize: '0.85rem', textAlign: 'right' }}
+                      value={matchData.awayGoals ?? ''}
+                      disabled={isCompleted}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                        const updatedMatches = { ...localResults.actual_matches };
+                        updatedMatches[m.id] = {
+                          ...(updatedMatches[m.id] || { completed: false, outcome: null }),
+                          awayGoals: val
+                        };
+                        setLocalResults({ ...localResults, actual_matches: updatedMatches });
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
