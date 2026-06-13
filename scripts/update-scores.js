@@ -341,7 +341,7 @@ async function run() {
     const completed = event.status?.type?.completed || false;
     if (!completed) return;
 
-    const competitors = event.competitors || [];
+    const competitors = event.competitions?.[0]?.competitors || [];
     if (competitors.length < 2) return;
 
     const homeComp = competitors.find(c => c.homeAway === 'home');

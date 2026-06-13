@@ -477,7 +477,7 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
       matchesFound.forEach(event => {
         const completed = event.status?.type?.completed || false;
         if (!completed) return;
-        const competitors = event.competitors || [];
+        const competitors = event.competitions?.[0]?.competitors || [];
         if (competitors.length < 2) return;
         const homeComp = competitors.find(c => c.homeAway === 'home');
         const awayComp = competitors.find(c => c.homeAway === 'away');
