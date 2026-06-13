@@ -157,13 +157,15 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
       if (cloned.knockouts.third_place === undefined) cloned.knockouts.third_place = null;
       if (!cloned.third_place_advancers) cloned.third_place_advancers = [];
 
-      // Auto-align completed group matches from official results
-      GROUP_MATCHES.forEach(m => {
-        const actual = officialResults?.actual_matches?.[m.id];
-        if (actual && actual.completed) {
-          cloned.groupMatches[m.id] = actual.outcome;
-        }
-      });
+      if (isLocked) {
+        // Auto-align completed group matches from official results
+        GROUP_MATCHES.forEach(m => {
+          const actual = officialResults?.actual_matches?.[m.id];
+          if (actual && actual.completed) {
+            cloned.groupMatches[m.id] = actual.outcome;
+          }
+        });
+      }
 
       // Recalculate standings for all groups based on the updated match outcomes
       Object.keys(INITIAL_GROUPS).forEach(g => {
@@ -174,32 +176,36 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
         cloned.groups[g] = standings.map(s => s.team);
       });
 
-      // Auto-align completed group standings from official results
-      Object.keys(INITIAL_GROUPS).forEach(g => {
-        if (officialResults?.completed_games?.includes(`group_${g}`)) {
-          cloned.groups[g] = [...(officialResults.groups[g] || [])];
-        }
-      });
+      if (isLocked) {
+        // Auto-align completed group standings from official results
+        Object.keys(INITIAL_GROUPS).forEach(g => {
+          if (officialResults?.completed_games?.includes(`group_${g}`)) {
+            cloned.groups[g] = [...(officialResults.groups[g] || [])];
+          }
+        });
+      }
 
       // Auto-update third place eligibility list
       const thirdPlaces = getThirdPlaceTeams(cloned.groups);
       cloned.third_place_advancers = cloned.third_place_advancers.filter(team => thirdPlaces.includes(team));
 
-      // Auto-align completed knockouts from official results
-      stagesList.forEach(st => {
-        if (cloned.knockouts[st]) {
-          Object.keys(cloned.knockouts[st]).forEach(mId => {
-            if (officialResults?.completed_games?.includes(`${st}_${mId}`)) {
-              cloned.knockouts[st][mId] = officialResults.knockouts[st][mId];
-            }
-          });
+      if (isLocked) {
+        // Auto-align completed knockouts from official results
+        stagesList.forEach(st => {
+          if (cloned.knockouts[st]) {
+            Object.keys(cloned.knockouts[st]).forEach(mId => {
+              if (officialResults?.completed_games?.includes(`${st}_${mId}`)) {
+                cloned.knockouts[st][mId] = officialResults.knockouts[st][mId];
+              }
+            });
+          }
+        });
+        if (officialResults?.completed_games?.includes('final')) {
+          cloned.knockouts.final = officialResults.knockouts.final;
         }
-      });
-      if (officialResults?.completed_games?.includes('final')) {
-        cloned.knockouts.final = officialResults.knockouts.final;
-      }
-      if (officialResults?.completed_games?.includes('third_place')) {
-        cloned.knockouts.third_place = officialResults.knockouts.third_place;
+        if (officialResults?.completed_games?.includes('third_place')) {
+          cloned.knockouts.third_place = officialResults.knockouts.third_place;
+        }
       }
 
       setPredictions(cloned);
@@ -215,7 +221,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
     if (isLocked) return;
 
     // Check if group is already completed in official results
-    if (officialResults?.completed_games?.includes(`group_${groupKey}`)) {
+    if (isLocked && officialResults?.completed_games?.includes(`group_${groupKey}`)) {
       return;
     }
 
@@ -252,7 +258,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
   // --- Swap ambiguous tied teams rank control ---
   const swapAmbiguousTeams = (groupKey, index, direction) => {
     if (isLocked) return;
-    if (officialResults?.completed_games?.includes(`group_${groupKey}`)) return;
+    if (isLocked && officialResults?.completed_games?.includes(`group_${groupKey}`)) return;
 
     const groupTeams = INITIAL_GROUPS[groupKey].teams;
     const groupMatchesList = GROUP_MATCHES.filter(m => m.group === groupKey);
@@ -351,7 +357,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
 
   // Load team for specific match node based on propagation
   const getMatchTeams = (stage, matchId) => {
-    const officialWinner = officialResults?.knockouts?.[stage]?.[matchId];
+    const officialWinner = isLocked ? (officialResults?.knockouts?.[stage]?.[matchId] || null) : null;
 
     if (stage === 'r32') {
       const match = r32Matches.find(m => m.id === matchId);
@@ -404,27 +410,27 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
     if (stage === 'final') {
       const teamA = getSelectedWinner('sf', 'm1');
       const teamB = getSelectedWinner('sf', 'm2');
-      return { teamA, teamB, officialWinner: officialResults?.knockouts?.final };
+      return { teamA, teamB, officialWinner: isLocked ? officialResults?.knockouts?.final : null };
     }
 
     if (stage === 'third_place') {
       const teamA = getSelectedLoser('sf', 'm1');
       const teamB = getSelectedLoser('sf', 'm2');
-      return { teamA, teamB, officialWinner: officialResults?.knockouts?.third_place };
+      return { teamA, teamB, officialWinner: isLocked ? officialResults?.knockouts?.third_place : null };
     }
 
     return { teamA: null, teamB: null };
   };
 
   const getSelectedWinner = (stage, matchId) => {
-    if (officialResults?.knockouts?.[stage]?.[matchId]) {
+    if (isLocked && officialResults?.knockouts?.[stage]?.[matchId]) {
       return officialResults.knockouts[stage][matchId];
     }
     return predictions.knockouts?.[stage]?.[matchId] || null;
   };
 
   const getSelectedLoser = (stage, matchId) => {
-    const officialWin = officialResults?.knockouts?.[stage]?.[matchId];
+    const officialWin = isLocked ? officialResults?.knockouts?.[stage]?.[matchId] : null;
     const { teamA, teamB } = getMatchTeams(stage, matchId);
     
     if (officialWin) {
@@ -440,7 +446,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
   const selectWinner = (stage, matchId, teamName) => {
     if (isLocked || !teamName) return;
 
-    if (officialResults?.completed_games?.includes(`${stage}_${matchId}`)) {
+    if (isLocked && officialResults?.completed_games?.includes(`${stage}_${matchId}`)) {
       return; // Locked
     }
 
@@ -483,35 +489,37 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
 
       const aligned = JSON.parse(JSON.stringify(predictions));
       
-      // Auto-align any completed group standings/outcomes in predictions to official results
-      Object.keys(INITIAL_GROUPS).forEach(g => {
-        if (officialResults?.completed_games?.includes(`group_${g}`)) {
-          aligned.groups[g] = [...officialResults.groups[g]];
-        }
-      });
-
-      // Align completed group matches
-      GROUP_MATCHES.forEach(m => {
-        const actual = officialResults?.actual_matches?.[m.id];
-        if (actual && actual.completed) {
-          aligned.groupMatches[m.id] = actual.outcome;
-        }
-      });
-
-      // Auto-align completed knockouts
-      const stages = ['r32', 'r16', 'qf', 'sf'];
-      stages.forEach(st => {
-        Object.keys(aligned.knockouts[st]).forEach(mId => {
-          if (officialResults?.completed_games?.includes(`${st}_${mId}`)) {
-            aligned.knockouts[st][mId] = officialResults.knockouts[st][mId];
+      if (isLocked) {
+        // Auto-align any completed group standings/outcomes in predictions to official results
+        Object.keys(INITIAL_GROUPS).forEach(g => {
+          if (officialResults?.completed_games?.includes(`group_${g}`)) {
+            aligned.groups[g] = [...officialResults.groups[g]];
           }
         });
-      });
-      if (officialResults?.completed_games?.includes('final')) {
-        aligned.knockouts.final = officialResults.knockouts.final;
-      }
-      if (officialResults?.completed_games?.includes('third_place')) {
-        aligned.knockouts.third_place = officialResults.knockouts.third_place;
+
+        // Align completed group matches
+        GROUP_MATCHES.forEach(m => {
+          const actual = officialResults?.actual_matches?.[m.id];
+          if (actual && actual.completed) {
+            aligned.groupMatches[m.id] = actual.outcome;
+          }
+        });
+
+        // Auto-align completed knockouts
+        const stages = ['r32', 'r16', 'qf', 'sf'];
+        stages.forEach(st => {
+          Object.keys(aligned.knockouts[st]).forEach(mId => {
+            if (officialResults?.completed_games?.includes(`${st}_${mId}`)) {
+              aligned.knockouts[st][mId] = officialResults.knockouts[st][mId];
+            }
+          });
+        });
+        if (officialResults?.completed_games?.includes('final')) {
+          aligned.knockouts.final = officialResults.knockouts.final;
+        }
+        if (officialResults?.completed_games?.includes('third_place')) {
+          aligned.knockouts.third_place = officialResults.knockouts.third_place;
+        }
       }
 
       const { error } = await supabase
@@ -647,7 +655,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                 predictions.groups[groupKey]
               );
               
-              const isGroupCompleted = officialResults?.completed_games?.includes(`group_${groupKey}`);
+              const isGroupCompleted = isLocked && (officialResults?.completed_games?.includes(`group_${groupKey}`) || false);
 
               return (
                 <div key={groupKey} className="glass-card group-editor-row" style={{ padding: '1.5rem', display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2rem', flexWrap: 'wrap' }}>
@@ -665,7 +673,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                       {groupMatchesList.map(m => {
                         // Check if match was completed officially
                         const actualMatch = officialResults?.actual_matches?.[m.id];
-                        const isCompleted = actualMatch && actualMatch.completed;
+                        const isCompleted = isLocked && actualMatch && actualMatch.completed;
                         const matchOutcome = isCompleted ? actualMatch.outcome : (predictions.groupMatches?.[m.id] || null);
 
                         return (
@@ -857,7 +865,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                 {r32Matches.map((m, idx) => {
                   const { teamA, teamB, officialWinner } = getMatchTeams('r32', m.id);
                   const selectedWinner = getSelectedWinner('r32', m.id);
-                  const isCompleted = officialResults?.completed_games?.includes(`r32_${m.id}`);
+                  const isCompleted = isLocked && (officialResults?.completed_games?.includes(`r32_${m.id}`) || false);
 
                   return (
                     <div key={m.id} className="match-card">
@@ -892,7 +900,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                   const matchId = `m${idx + 1}`;
                   const { teamA, teamB, officialWinner } = getMatchTeams('r16', matchId);
                   const selectedWinner = getSelectedWinner('r16', matchId);
-                  const isCompleted = officialResults?.completed_games?.includes(`r16_${matchId}`);
+                  const isCompleted = isLocked && (officialResults?.completed_games?.includes(`r16_${matchId}`) || false);
 
                   return (
                     <div key={matchId} className="match-card" style={{ height: '140px', justifyContent: 'center' }}>
@@ -927,7 +935,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                   const matchId = `m${idx + 1}`;
                   const { teamA, teamB, officialWinner } = getMatchTeams('qf', matchId);
                   const selectedWinner = getSelectedWinner('qf', matchId);
-                  const isCompleted = officialResults?.completed_games?.includes(`qf_${matchId}`);
+                  const isCompleted = isLocked && (officialResults?.completed_games?.includes(`qf_${matchId}`) || false);
 
                   return (
                     <div key={matchId} className="match-card" style={{ height: '280px', justifyContent: 'center' }}>
@@ -962,7 +970,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                   const matchId = `m${idx + 1}`;
                   const { teamA, teamB, officialWinner } = getMatchTeams('sf', matchId);
                   const selectedWinner = getSelectedWinner('sf', matchId);
-                  const isCompleted = officialResults?.completed_games?.includes(`sf_${matchId}`);
+                  const isCompleted = isLocked && (officialResults?.completed_games?.includes(`sf_${matchId}`) || false);
 
                   return (
                     <div key={matchId} className="match-card" style={{ height: '560px', justifyContent: 'center' }}>
@@ -997,7 +1005,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                   {(() => {
                     const { teamA, teamB, officialWinner } = getMatchTeams('third_place');
                     const selectedWinner = predictions.knockouts?.third_place;
-                    const isCompleted = officialResults?.completed_games?.includes('third_place');
+                    const isCompleted = isLocked && (officialResults?.completed_games?.includes('third_place') || false);
 
                     return (
                       <div className="match-card">
@@ -1029,7 +1037,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
                   {(() => {
                     const { teamA, teamB, officialWinner } = getMatchTeams('final');
                     const selectedWinner = predictions.knockouts?.final;
-                    const isCompleted = officialResults?.completed_games?.includes('final');
+                    const isCompleted = isLocked && (officialResults?.completed_games?.includes('final') || false);
 
                     return (
                       <div className="match-card">
