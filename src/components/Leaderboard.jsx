@@ -149,19 +149,25 @@ export default function Leaderboard({ currentUserId }) {
             {sortedLeaderboard.map((user, idx) => {
               const isMe = user.id === currentUserId;
               
-              // Assign rank indices
-              let rankBadge = <span className="rank-badge">{idx + 1}</span>;
-              if (idx === 0) rankBadge = <span className="rank-badge rank-1">🥇</span>;
-              else if (idx === 1) rankBadge = <span className="rank-badge rank-2">🥈</span>;
-              else if (idx === 2) rankBadge = <span className="rank-badge rank-3">🥉</span>;
-
               const isPrimary = leaderboardType === 'primary';
+              const activeScore = isPrimary ? user.score : user.scoreSecondChance;
+
+              // Assign rank indices (players with the same score get the same rank)
+              const firstIdxWithScore = sortedLeaderboard.findIndex(u => {
+                const uScore = isPrimary ? u.score : u.scoreSecondChance;
+                return uScore === activeScore;
+              });
+              const displayRank = firstIdxWithScore + 1;
+
+              let rankBadge = <span className="rank-badge">{displayRank}</span>;
+              if (displayRank === 1) rankBadge = <span className="rank-badge rank-1">🥇</span>;
+              else if (displayRank === 2) rankBadge = <span className="rank-badge rank-2">🥈</span>;
+              else if (displayRank === 3) rankBadge = <span className="rank-badge rank-3">🥉</span>;
+
               const hasData = isPrimary ? !!user.predictions : hasSecondChancePicks(user);
               const statusLabel = isPrimary 
                 ? (user.isSubmitted ? 'Saved' : 'Not Saved')
                 : (hasSecondChancePicks(user) ? 'Saved' : 'Not Saved');
-              
-              const activeScore = isPrimary ? user.score : user.scoreSecondChance;
 
               return (
                 <tr 
