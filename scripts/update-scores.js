@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import fs from 'fs';
+import path from 'path';
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -204,6 +206,102 @@ function calculateActualStandings(teams, matches, scores) {
   });
 
   return sorted;
+}
+
+function getLocalOfficialAdvancingTeams(officialResults) {
+  if (officialResults && officialResults.r32_teams) {
+    return officialResults.r32_teams;
+  }
+
+  // Load combinations data using fs
+  const combinationsData = JSON.parse(
+    fs.readFileSync(path.resolve('./src/utils/third_place_combinations.json'), 'utf-8')
+  );
+
+  const groups = {};
+  const thirdPlaceTeamsList = [];
+
+  Object.keys(INITIAL_GROUPS).forEach(g => {
+    const groupTeams = INITIAL_GROUPS[g];
+    const groupMatchesList = GROUP_MATCHES.filter(m => m.group === g);
+    const sorted = calculateActualStandings(groupTeams, groupMatchesList, officialResults.actual_matches || {});
+    groups[g] = sorted;
+    
+    thirdPlaceTeamsList.push({
+      team: sorted[2],
+      group: g
+    });
+  });
+
+  const thirdPlaceStats = thirdPlaceTeamsList.map(({ team, group }) => {
+    const matchesOfGroup = GROUP_MATCHES.filter(m => m.group === group);
+    const stats = { team, group, points: 0, gd: 0, gf: 0, ga: 0 };
+    
+    matchesOfGroup.forEach(m => {
+      const score = officialResults.actual_matches?.[m.id];
+      if (!score || !score.completed) return;
+      
+      const isHome = m.home === team;
+      const isAway = m.away === team;
+      if (!isHome && !isAway) return;
+      
+      const hg = score.homeGoals;
+      const ag = score.awayGoals;
+      const gf = isHome ? hg : ag;
+      const ga = isHome ? ag : hg;
+      
+      stats.gf += gf;
+      stats.ga += ga;
+      if (gf > ga) stats.points += 3;
+      else if (gf === ga) stats.points += 1;
+    });
+    
+    stats.gd = stats.gf - stats.ga;
+    return stats;
+  });
+
+  thirdPlaceStats.sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.gd !== a.gd) return b.gd - a.gd;
+    if (b.gf !== a.gf) return b.gf - a.gf;
+    return a.team.localeCompare(b.team);
+  });
+
+  const qualifiedBestThirds = thirdPlaceStats.slice(0, 8);
+  const bestThirdPlaces = qualifiedBestThirds.map(s => s.team);
+
+  const r32Teams = {};
+  Object.keys(groups).forEach(g => {
+    r32Teams[`1${g}`] = groups[g][0];
+    r32Teams[`2${g}`] = groups[g][1];
+  });
+
+  const qualifiedGroups = qualifiedBestThirds.map(s => s.group);
+  if (qualifiedGroups.length === 8) {
+    qualifiedGroups.sort();
+    const lookupKey = qualifiedGroups.join('');
+    const mapping = combinationsData[lookupKey];
+    if (mapping) {
+      const winnerKeys = ['1A', '1B', '1D', '1E', '1G', '1I', '1K', '1L'];
+      winnerKeys.forEach(wKey => {
+        const oppGroup = mapping[wKey];
+        const oppTeamEntry = qualifiedBestThirds.find(s => s.group === oppGroup);
+        r32Teams[`OPP_${wKey}`] = oppTeamEntry ? oppTeamEntry.team : null;
+      });
+    } else {
+      const winnerKeys = ['1A', '1B', '1D', '1E', '1G', '1I', '1K', '1L'];
+      winnerKeys.forEach((wKey, idx) => {
+        r32Teams[`OPP_${wKey}`] = bestThirdPlaces[idx] || null;
+      });
+    }
+  } else {
+    const winnerKeys = ['1A', '1B', '1D', '1E', '1G', '1I', '1K', '1L'];
+    winnerKeys.forEach((wKey, idx) => {
+      r32Teams[`OPP_${wKey}`] = bestThirdPlaces[idx] || null;
+    });
+  }
+
+  return r32Teams;
 }
 
 // Grades a single user bracket predictions against official results
@@ -486,6 +584,130 @@ async function run() {
       }
     }
   });
+
+  // --- Automated Knockout Sync (R32, R16, QF, SF) ---
+  const allGroupsCompleted = Object.keys(INITIAL_GROUPS).every(g => 
+    results.completed_games?.includes(`group_${g}`)
+  );
+  if (allGroupsCompleted) {
+    const r32Teams = getLocalOfficialAdvancingTeams(results);
+    const r32Matches = [
+      { id: 'm1', teamAKey: '2A', teamBKey: '2B' },
+      { id: 'm2', teamAKey: '1E', teamBKey: 'OPP_1E' },
+      { id: 'm3', teamAKey: '1F', teamBKey: '2C' },
+      { id: 'm4', teamAKey: '1C', teamBKey: '2F' },
+      { id: 'm5', teamAKey: '1I', teamBKey: 'OPP_1I' },
+      { id: 'm6', teamAKey: '2E', teamBKey: '2I' },
+      { id: 'm7', teamAKey: '1A', teamBKey: 'OPP_1A' },
+      { id: 'm8', teamAKey: '1L', teamBKey: 'OPP_1L' },
+      { id: 'm9', teamAKey: '1D', teamBKey: 'OPP_1D' },
+      { id: 'm10', teamAKey: '1G', teamBKey: 'OPP_1G' },
+      { id: 'm11', teamAKey: '2K', teamBKey: '2L' },
+      { id: 'm12', teamAKey: '1H', teamBKey: '2J' },
+      { id: 'm13', teamAKey: '1B', teamBKey: 'OPP_1B' },
+      { id: 'm14', teamAKey: '1J', teamBKey: '2H' },
+      { id: 'm15', teamAKey: '1K', teamBKey: 'OPP_1K' },
+      { id: 'm16', teamAKey: '2D', teamBKey: '2G' }
+    ];
+
+    const getOfficialKnockoutTeams = (stage, matchId) => {
+      if (stage === 'r32') {
+        const match = r32Matches.find(m => m.id === matchId);
+        const teamA = r32Teams[match.teamAKey] || null;
+        const teamB = r32Teams[match.teamBKey] || null;
+        return { teamA, teamB };
+      }
+
+      const getWinner = (st, mId) => results.knockouts?.[st]?.[mId] || null;
+
+      if (stage === 'r16') {
+        const sourceMap = {
+          m1: ['r32', 'm1', 'm3'],
+          m2: ['r32', 'm2', 'm5'],
+          m3: ['r32', 'm4', 'm6'],
+          m4: ['r32', 'm7', 'm8'],
+          m5: ['r32', 'm11', 'm12'],
+          m6: ['r32', 'm9', 'm10'],
+          m7: ['r32', 'm14', 'm16'],
+          m8: ['r32', 'm13', 'm15']
+        };
+        const [prevStage, mKeyA, mKeyB] = sourceMap[matchId];
+        const teamA = getWinner(prevStage, mKeyA);
+        const teamB = getWinner(prevStage, mKeyB);
+        return { teamA, teamB };
+      }
+
+      if (stage === 'qf') {
+        const sourceMap = {
+          m1: ['r16', 'm1', 'm2'],
+          m2: ['r16', 'm3', 'm4'],
+          m3: ['r16', 'm5', 'm6'],
+          m4: ['r16', 'm7', 'm8']
+        };
+        const [prevStage, mKeyA, mKeyB] = sourceMap[matchId];
+        const teamA = getWinner(prevStage, mKeyA);
+        const teamB = getWinner(prevStage, mKeyB);
+        return { teamA, teamB };
+      }
+
+      if (stage === 'sf') {
+        const sourceMap = {
+          m1: ['qf', 'm1', 'm2'],
+          m2: ['qf', 'm3', 'm4']
+        };
+        const [prevStage, mKeyA, mKeyB] = sourceMap[matchId];
+        const teamA = getWinner(prevStage, mKeyA);
+        const teamB = getWinner(prevStage, mKeyB);
+        return { teamA, teamB };
+      }
+
+      return { teamA: null, teamB: null };
+    };
+
+    const stagesToSync = [
+      { key: 'r32', count: 16 },
+      { key: 'r16', count: 8 },
+      { key: 'qf', count: 4 },
+      { key: 'sf', count: 2 }
+    ];
+
+    stagesToSync.forEach(({ key, count }) => {
+      if (!results.knockouts[key]) results.knockouts[key] = {};
+      for (let idx = 0; idx < count; idx++) {
+        const matchId = `m${idx + 1}`;
+        const { teamA, teamB } = getOfficialKnockoutTeams(key, matchId);
+        if (!teamA || !teamB) continue;
+
+        // Find if there is a completed ESPN match containing these two teams
+        const matchingEvent = matchesFound.find(event => {
+          const competitors = event.competitions?.[0]?.competitors || [];
+          if (competitors.length < 2) return false;
+          const t1 = normalizeTeamName(competitors[0].team?.displayName);
+          const t2 = normalizeTeamName(competitors[1].team?.displayName);
+          return (t1 === teamA && t2 === teamB) || (t1 === teamB && t2 === teamA);
+        });
+
+        if (matchingEvent && matchingEvent.status?.type?.completed) {
+          const competitors = matchingEvent.competitions[0].competitors;
+          const homeComp = competitors.find(c => c.homeAway === 'home');
+          const awayComp = competitors.find(c => c.homeAway === 'away');
+          const hTeam = normalizeTeamName(homeComp.team?.displayName);
+          const aTeam = normalizeTeamName(awayComp.team?.displayName);
+          const winnerTeam = homeComp.winner ? hTeam : (awayComp.winner ? aTeam : null);
+
+          if (winnerTeam && results.knockouts[key][matchId] !== winnerTeam) {
+            results.knockouts[key][matchId] = winnerTeam;
+            const gameKey = `${key}_${matchId}`;
+            if (!results.completed_games.includes(gameKey)) {
+              results.completed_games.push(gameKey);
+            }
+            console.log(`Updating Knockout Match ${key} ${matchId}: Winner ${winnerTeam}`);
+            updatedCount++;
+          }
+        }
+      }
+    });
+  }
 
   if (updatedCount > 0) {
     console.log(`Saving ${updatedCount} official updates to database...`);

@@ -652,18 +652,18 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
     { id: 'm2', teamAKey: '1E', teamBKey: 'OPP_1E', date: 'June 29' },
     { id: 'm3', teamAKey: '1F', teamBKey: '2C', date: 'June 28' },
     { id: 'm4', teamAKey: '1C', teamBKey: '2F', date: 'June 29' },
-    { id: 'm5', teamAKey: '1I', teamBKey: 'OPP_1I', date: 'July 2' },
+    { id: 'm5', teamAKey: '1I', teamBKey: 'OPP_1I', date: 'June 30' },
     { id: 'm6', teamAKey: '2E', teamBKey: '2I', date: 'June 30' },
     { id: 'm7', teamAKey: '1A', teamBKey: 'OPP_1A', date: 'June 30' },
     { id: 'm8', teamAKey: '1L', teamBKey: 'OPP_1L', date: 'July 1' },
     { id: 'm9', teamAKey: '1D', teamBKey: 'OPP_1D', date: 'July 1' },
     { id: 'm10', teamAKey: '1G', teamBKey: 'OPP_1G', date: 'July 1' },
-    { id: 'm11', teamAKey: '1B', teamBKey: 'OPP_1B', date: 'June 29' },
-    { id: 'm12', teamAKey: '2D', teamBKey: '2G', date: 'June 30' },
-    { id: 'm13', teamAKey: '1J', teamBKey: '2H', date: 'July 2' },
-    { id: 'm14', teamAKey: '1H', teamBKey: '2J', date: 'July 2' },
+    { id: 'm11', teamAKey: '2K', teamBKey: '2L', date: 'July 2' },
+    { id: 'm12', teamAKey: '1H', teamBKey: '2J', date: 'July 2' },
+    { id: 'm13', teamAKey: '1B', teamBKey: 'OPP_1B', date: 'July 2' },
+    { id: 'm14', teamAKey: '1J', teamBKey: '2H', date: 'July 3' },
     { id: 'm15', teamAKey: '1K', teamBKey: 'OPP_1K', date: 'July 3' },
-    { id: 'm16', teamAKey: '2K', teamBKey: '2L', date: 'July 3' }
+    { id: 'm16', teamAKey: '2D', teamBKey: '2G', date: 'July 3' }
   ];
 
   // Load team for specific match node based on propagation
@@ -683,10 +683,10 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
         m2: ['r32', 'm2', 'm5'], // Winner Match 74 vs Winner Match 77
         m3: ['r32', 'm4', 'm6'], // Winner Match 76 vs Winner Match 78
         m4: ['r32', 'm7', 'm8'], // Winner Match 79 vs Winner Match 80
-        m5: ['r32', 'm9', 'm10'], // Winner Match 81 vs Winner Match 82
-        m6: ['r32', 'm11', 'm12'], // Winner Match 83 vs Winner Match 84
-        m7: ['r32', 'm13', 'm15'], // Winner Match 85 vs Winner Match 87
-        m8: ['r32', 'm14', 'm16']  // Winner Match 86 vs Winner Match 88
+        m5: ['r32', 'm11', 'm12'], // Winner Match 83 vs Winner Match 84 (R16 Match 93)
+        m6: ['r32', 'm9', 'm10'], // Winner Match 81 vs Winner Match 82 (R16 Match 94)
+        m7: ['r32', 'm14', 'm16'], // Winner Match 86 vs Winner Match 88 (R16 Match 95)
+        m8: ['r32', 'm13', 'm15']  // Winner Match 85 vs Winner Match 87 (R16 Match 96)
       };
       const [prevStage, mKeyA, mKeyB] = sourceMap[matchId];
       const teamA = getSelectedWinner(prevStage, mKeyA);

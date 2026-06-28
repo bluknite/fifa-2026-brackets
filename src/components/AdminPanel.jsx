@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { getTeamFlag } from './BracketEditor';
-import { calculateSecondChanceScore } from '../utils/standings';
+import { calculateSecondChanceScore, getOfficialAdvancingTeams } from '../utils/standings';
 
 const INITIAL_GROUPS = {
   A: ['Mexico', 'South Africa', 'Korea Republic', 'Czechia'],
@@ -641,6 +641,128 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
           }
         }
       });
+
+      // --- Automated Knockout Sync (R32, R16, QF, SF) ---
+      const allGroupsCompleted = Object.keys(INITIAL_GROUPS).every(g => 
+        results.completed_games?.includes(`group_${g}`)
+      );
+      if (allGroupsCompleted) {
+        const r32Teams = getOfficialAdvancingTeams(results, GROUP_MATCHES);
+        const r32Matches = [
+          { id: 'm1', teamAKey: '2A', teamBKey: '2B' },
+          { id: 'm2', teamAKey: '1E', teamBKey: 'OPP_1E' },
+          { id: 'm3', teamAKey: '1F', teamBKey: '2C' },
+          { id: 'm4', teamAKey: '1C', teamBKey: '2F' },
+          { id: 'm5', teamAKey: '1I', teamBKey: 'OPP_1I' },
+          { id: 'm6', teamAKey: '2E', teamBKey: '2I' },
+          { id: 'm7', teamAKey: '1A', teamBKey: 'OPP_1A' },
+          { id: 'm8', teamAKey: '1L', teamBKey: 'OPP_1L' },
+          { id: 'm9', teamAKey: '1D', teamBKey: 'OPP_1D' },
+          { id: 'm10', teamAKey: '1G', teamBKey: 'OPP_1G' },
+          { id: 'm11', teamAKey: '2K', teamBKey: '2L' },
+          { id: 'm12', teamAKey: '1H', teamBKey: '2J' },
+          { id: 'm13', teamAKey: '1B', teamBKey: 'OPP_1B' },
+          { id: 'm14', teamAKey: '1J', teamBKey: '2H' },
+          { id: 'm15', teamAKey: '1K', teamBKey: 'OPP_1K' },
+          { id: 'm16', teamAKey: '2D', teamBKey: '2G' }
+        ];
+
+        const getOfficialKnockoutTeams = (stage, matchId) => {
+          if (stage === 'r32') {
+            const match = r32Matches.find(m => m.id === matchId);
+            const teamA = r32Teams[match.teamAKey] || null;
+            const teamB = r32Teams[match.teamBKey] || null;
+            return { teamA, teamB };
+          }
+
+          const getWinner = (st, mId) => results.knockouts?.[st]?.[mId] || null;
+
+          if (stage === 'r16') {
+            const sourceMap = {
+              m1: ['r32', 'm1', 'm3'],
+              m2: ['r32', 'm2', 'm5'],
+              m3: ['r32', 'm4', 'm6'],
+              m4: ['r32', 'm7', 'm8'],
+              m5: ['r32', 'm11', 'm12'],
+              m6: ['r32', 'm9', 'm10'],
+              m7: ['r32', 'm14', 'm16'],
+              m8: ['r32', 'm13', 'm15']
+            };
+            const [prevStage, mKeyA, mKeyB] = sourceMap[matchId];
+            const teamA = getWinner(prevStage, mKeyA);
+            const teamB = getWinner(prevStage, mKeyB);
+            return { teamA, teamB };
+          }
+
+          if (stage === 'qf') {
+            const sourceMap = {
+              m1: ['r16', 'm1', 'm2'],
+              m2: ['r16', 'm3', 'm4'],
+              m3: ['r16', 'm5', 'm6'],
+              m4: ['r16', 'm7', 'm8']
+            };
+            const [prevStage, mKeyA, mKeyB] = sourceMap[matchId];
+            const teamA = getWinner(prevStage, mKeyA);
+            const teamB = getWinner(prevStage, mKeyB);
+            return { teamA, teamB };
+          }
+
+          if (stage === 'sf') {
+            const sourceMap = {
+              m1: ['qf', 'm1', 'm2'],
+              m2: ['qf', 'm3', 'm4']
+            };
+            const [prevStage, mKeyA, mKeyB] = sourceMap[matchId];
+            const teamA = getWinner(prevStage, mKeyA);
+            const teamB = getWinner(prevStage, mKeyB);
+            return { teamA, teamB };
+          }
+
+          return { teamA: null, teamB: null };
+        };
+
+        const stagesToSync = [
+          { key: 'r32', count: 16 },
+          { key: 'r16', count: 8 },
+          { key: 'qf', count: 4 },
+          { key: 'sf', count: 2 }
+        ];
+
+        stagesToSync.forEach(({ key, count }) => {
+          if (!results.knockouts[key]) results.knockouts[key] = {};
+          for (let idx = 0; idx < count; idx++) {
+            const matchId = `m${idx + 1}`;
+            const { teamA, teamB } = getOfficialKnockoutTeams(key, matchId);
+            if (!teamA || !teamB) continue;
+
+            const matchingEvent = matchesFound.find(event => {
+              const competitors = event.competitions?.[0]?.competitors || [];
+              if (competitors.length < 2) return false;
+              const t1 = normalizeLocalName(competitors[0].team?.displayName);
+              const t2 = normalizeLocalName(competitors[1].team?.displayName);
+              return (t1 === teamA && t2 === teamB) || (t1 === teamB && t2 === teamA);
+            });
+
+            if (matchingEvent && matchingEvent.status?.type?.completed) {
+              const competitors = matchingEvent.competitions[0].competitors;
+              const homeComp = competitors.find(c => c.homeAway === 'home');
+              const awayComp = competitors.find(c => c.homeAway === 'away');
+              const hTeam = normalizeLocalName(homeComp.team?.displayName);
+              const aTeam = normalizeLocalName(awayComp.team?.displayName);
+              const winnerTeam = homeComp.winner ? hTeam : (awayComp.winner ? aTeam : null);
+
+              if (winnerTeam && results.knockouts[key][matchId] !== winnerTeam) {
+                results.knockouts[key][matchId] = winnerTeam;
+                const gameKey = `${key}_${matchId}`;
+                if (!results.completed_games.includes(gameKey)) {
+                  results.completed_games.push(gameKey);
+                }
+                updatedCount++;
+              }
+            }
+          }
+        });
+      }
 
       if (updatedCount > 0) {
         // Update DB tournament results
