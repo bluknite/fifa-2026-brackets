@@ -334,9 +334,9 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
     }
   };
 
-  // --- Reset all user predictions/brackets ---
-  const handleResetBrackets = async () => {
-    if (!window.confirm("Are you sure you want to RESET all user predictions, brackets, and scores? This action cannot be undone.")) return;
+  // --- Reset all user primary predictions/brackets ---
+  const handleResetPrimaryBrackets = async () => {
+    if (!window.confirm("Are you sure you want to RESET all user primary predictions, brackets, and scores? This will not affect second chance brackets. This action cannot be undone.")) return;
     try {
       setSaving(true);
       setStatusMsg(null);
@@ -367,6 +367,38 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
             predictions: emptyPredictions,
             score: 0,
             is_submitted: false,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', b.id)
+      );
+
+      await Promise.all(updates);
+      setStatusMsg({ type: 'success', message: `Successfully reset primary brackets and scores for all ${brackets.length} users.` });
+      onResultsUpdated();
+    } catch (err) {
+      console.error(err);
+      setStatusMsg({ type: 'error', message: err.message || 'Error resetting primary brackets.' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // --- Reset all user second chance predictions/brackets ---
+  const handleResetSecondChanceBrackets = async () => {
+    if (!window.confirm("Are you sure you want to RESET all user second chance predictions and scores? This will not affect primary bracket results. This action cannot be undone.")) return;
+    try {
+      setSaving(true);
+      setStatusMsg(null);
+
+      const { data: brackets, error: loadError } = await supabase
+        .from('brackets')
+        .select('id');
+      if (loadError) throw loadError;
+
+      const updates = brackets.map(b => 
+        supabase
+          .from('brackets')
+          .update({
             predictions_second_chance: {
               knockouts: {
                 r32: {},
@@ -384,11 +416,11 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
       );
 
       await Promise.all(updates);
-      setStatusMsg({ type: 'success', message: `Successfully reset all ${brackets.length} user brackets.` });
+      setStatusMsg({ type: 'success', message: `Successfully reset second chance brackets and scores for all ${brackets.length} users.` });
       onResultsUpdated();
     } catch (err) {
       console.error(err);
-      setStatusMsg({ type: 'error', message: err.message || 'Error resetting brackets.' });
+      setStatusMsg({ type: 'error', message: err.message || 'Error resetting second chance brackets.' });
     } finally {
       setSaving(false);
     }
@@ -734,8 +766,12 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
             🔄 Sync Live Scores from ESPN
           </button>
           
-          <button className="btn btn-danger" onClick={handleResetBrackets} disabled={saving} style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--crimson)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-            ⚠️ Reset All User Brackets
+          <button className="btn btn-danger" onClick={handleResetPrimaryBrackets} disabled={saving} style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--crimson)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+            ⚠️ Reset Primary Brackets
+          </button>
+
+          <button className="btn btn-danger" onClick={handleResetSecondChanceBrackets} disabled={saving} style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--crimson)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+            ⚠️ Reset Second Chance Brackets
           </button>
 
           <button className="btn btn-danger" onClick={handleResetOfficialResults} disabled={saving} style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--crimson)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
