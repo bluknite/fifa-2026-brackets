@@ -397,7 +397,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
         }
 
         const calculatedScore = calculateScore(aligned, officialResults, isLocked);
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('brackets')
           .update({
             predictions: aligned,
@@ -405,9 +405,13 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
             score: calculatedScore,
             updated_at: new Date().toISOString()
           })
-          .eq('user_id', profile.id);
+          .eq('user_id', profile.id)
+          .select();
 
         if (error) throw error;
+        if (!data || data.length === 0) {
+          throw new Error('Submissions are locked. Changes could not be saved.');
+        }
 
         isDirtyRef.current = false; // Reset dirty flag
         setSaveStatus({ type: 'success', message: 'All changes saved automatically! ⚽' });
@@ -454,17 +458,20 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
           }
         }
 
-        const calculatedSecondChanceScore = calculateSecondChanceScore(aligned, officialResults, isSecondChanceLocked);
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('brackets')
           .update({
             predictions_second_chance: aligned,
             score_second_chance: calculatedSecondChanceScore,
             updated_at: new Date().toISOString()
           })
-          .eq('user_id', profile.id);
+          .eq('user_id', profile.id)
+          .select();
 
         if (error) throw error;
+        if (!data || data.length === 0) {
+          throw new Error('Submissions are locked. Changes could not be saved.');
+        }
 
         isSecondChanceDirtyRef.current = false;
         setSaveStatus({ type: 'success', message: 'Second-chance changes saved automatically! ⚽' });

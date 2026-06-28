@@ -103,8 +103,19 @@ export default function App() {
             .insert({
               user_id: session.user.id,
               predictions: emptyPredictions,
+              predictions_second_chance: {
+                knockouts: {
+                  r32: {},
+                  r16: {},
+                  qf: {},
+                  sf: {},
+                  final: null,
+                  third_place: null
+                }
+              },
               is_submitted: false,
-              score: 0
+              score: 0,
+              score_second_chance: 0
             })
             .select()
             .single();
