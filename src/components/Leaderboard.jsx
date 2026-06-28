@@ -146,7 +146,7 @@ export default function Leaderboard({ currentUserId }) {
             </tr>
           </thead>
           <tbody>
-            {sortedLeaderboard.map((user, idx) => {
+            {sortedLeaderboard.map((user) => {
               const isMe = user.id === currentUserId;
               
               const isPrimary = leaderboardType === 'primary';

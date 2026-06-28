@@ -697,8 +697,8 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
     if (stage === 'qf') {
       const sourceMap = {
         m1: ['r16', 'm1', 'm2'],
-        m2: ['r16', 'm3', 'm4'],
-        m3: ['r16', 'm5', 'm6'],
+        m2: ['r16', 'm5', 'm6'],
+        m3: ['r16', 'm3', 'm4'],
         m4: ['r16', 'm7', 'm8']
       };
       const [prevStage, mKeyA, mKeyB] = sourceMap[matchId];
