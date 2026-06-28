@@ -238,6 +238,9 @@ export function getOfficialAdvancingTeams(officialResults, groupMatchesList) {
   if (officialResults && officialResults.r32_teams) {
     return officialResults.r32_teams;
   }
+  if (officialResults && officialResults.results && officialResults.results.r32_teams) {
+    return officialResults.results.r32_teams;
+  }
 
   const groups = {};
   const thirdPlaceTeamsList = [];

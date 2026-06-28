@@ -564,6 +564,89 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
         return mappings[name.trim()] || name.trim();
       };
 
+      const getOfficialR32TeamsFromESPN = (matches, groups) => {
+        if (!groups || Object.keys(groups).length < 12) return null;
+
+        const r32Teams = {};
+
+        const r32Matches = [
+          { id: 'm1', teamAKey: '2A', teamBKey: '2B' },
+          { id: 'm2', teamAKey: '1E', teamBKey: 'OPP_1E' },
+          { id: 'm3', teamAKey: '1F', teamBKey: '2C' },
+          { id: 'm4', teamAKey: '1C', teamBKey: '2F' },
+          { id: 'm5', teamAKey: '1I', teamBKey: 'OPP_1I' },
+          { id: 'm6', teamAKey: '2E', teamBKey: '2I' },
+          { id: 'm7', teamAKey: '1A', teamBKey: 'OPP_1A' },
+          { id: 'm8', teamAKey: '1L', teamBKey: 'OPP_1L' },
+          { id: 'm9', teamAKey: '1D', teamBKey: 'OPP_1D' },
+          { id: 'm10', teamAKey: '1G', teamBKey: 'OPP_1G' },
+          { id: 'm11', teamAKey: '2K', teamBKey: '2L' },
+          { id: 'm12', teamAKey: '1H', teamBKey: '2J' },
+          { id: 'm13', teamAKey: '1B', teamBKey: 'OPP_1B' },
+          { id: 'm14', teamAKey: '1J', teamBKey: '2H' },
+          { id: 'm15', teamAKey: '1K', teamBKey: 'OPP_1K' },
+          { id: 'm16', teamAKey: '2D', teamBKey: '2G' }
+        ];
+
+        const r32Events = matches.filter(event => {
+          const name = event.name?.toLowerCase() || '';
+          if (name.includes("group")) return false;
+          const dateStr = event.date || '';
+          return dateStr.startsWith("2026-06-28") || 
+                 dateStr.startsWith("2026-06-29") || 
+                 dateStr.startsWith("2026-06-30") || 
+                 dateStr.startsWith("2026-07-01") || 
+                 dateStr.startsWith("2026-07-02") || 
+                 dateStr.startsWith("2026-07-03") || 
+                 dateStr.startsWith("2026-07-04");
+        });
+
+        r32Matches.forEach(match => {
+          const keyA = match.teamAKey;
+          const keyB = match.teamBKey;
+
+          const resolvedA = keyA.startsWith("OPP_") ? null : (groups[keyA[1]] ? groups[keyA[1]][parseInt(keyA[0], 10) - 1] : null);
+          const resolvedB = keyB.startsWith("OPP_") ? null : (groups[keyB[1]] ? groups[keyB[1]][parseInt(keyB[0], 10) - 1] : null);
+
+          const event = r32Events.find(ev => {
+            const competitors = ev.competitions?.[0]?.competitors || [];
+            if (competitors.length < 2) return false;
+            const t1 = normalizeLocalName(competitors[0].team?.displayName);
+            const t2 = normalizeLocalName(competitors[1].team?.displayName);
+            if (resolvedA && resolvedB) {
+              return (t1 === resolvedA && t2 === resolvedB) || (t1 === resolvedB && t2 === resolvedA);
+            }
+            return (resolvedA && (t1 === resolvedA || t2 === resolvedA)) ||
+                   (resolvedB && (t1 === resolvedB || t2 === resolvedB));
+          });
+
+          if (event) {
+            const competitors = event.competitions[0].competitors;
+            const t1 = normalizeLocalName(competitors[0].team?.displayName);
+            const t2 = normalizeLocalName(competitors[1].team?.displayName);
+
+            if (resolvedA) {
+              r32Teams[keyA] = resolvedA;
+              r32Teams[keyB] = (t1 === resolvedA) ? t2 : t1;
+            } else if (resolvedB) {
+              r32Teams[keyB] = resolvedB;
+              r32Teams[keyA] = (t1 === resolvedB) ? t2 : t1;
+            } else {
+              r32Teams[keyA] = resolvedA;
+              r32Teams[keyB] = resolvedB;
+            }
+          }
+        });
+
+        const resolvedKeys = Object.keys(r32Teams);
+        if (resolvedKeys.length < 32) {
+          console.warn(`Only resolved ${resolvedKeys.length}/32 Round of 32 teams from ESPN API.`);
+          return null;
+        }
+
+        return r32Teams;
+      };
+
       let updatedCount = 0;
 
       matchesFound.forEach(event => {
@@ -647,6 +730,15 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
         results.completed_games?.includes(`group_${g}`)
       );
       if (allGroupsCompleted) {
+        // 1. Pull the official Round of 32 matchups from the ESPN matches
+        const espnR32Teams = getOfficialR32TeamsFromESPN(matchesFound, results.groups);
+        if (espnR32Teams) {
+          if (JSON.stringify(results.r32_teams) !== JSON.stringify(espnR32Teams)) {
+            results.r32_teams = espnR32Teams;
+            updatedCount++;
+          }
+        }
+
         const r32Teams = getOfficialAdvancingTeams(results, GROUP_MATCHES);
         const r32Matches = [
           { id: 'm1', teamAKey: '2A', teamBKey: '2B' },
