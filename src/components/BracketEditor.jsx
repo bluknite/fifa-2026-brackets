@@ -458,6 +458,7 @@ export default function BracketEditor({ profile, bracket, tournamentResults, onS
           }
         }
 
+        const calculatedSecondChanceScore = calculateSecondChanceScore(aligned, officialResults, isSecondChanceLocked);
         const { data, error } = await supabase
           .from('brackets')
           .update({
