@@ -902,6 +902,81 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
     }
   };
 
+  const r32Teams = getOfficialAdvancingTeams(localResults, GROUP_MATCHES);
+
+  const getMatchTeams = (stage, matchId) => {
+    const r32Matches = [
+      { id: 'm1', teamAKey: '2A', teamBKey: '2B' },
+      { id: 'm2', teamAKey: '1E', teamBKey: 'OPP_1E' },
+      { id: 'm3', teamAKey: '1F', teamBKey: '2C' },
+      { id: 'm4', teamAKey: '1C', teamBKey: '2F' },
+      { id: 'm5', teamAKey: '1I', teamBKey: 'OPP_1I' },
+      { id: 'm6', teamAKey: '2E', teamBKey: '2I' },
+      { id: 'm7', teamAKey: '1A', teamBKey: 'OPP_1A' },
+      { id: 'm8', teamAKey: '1L', teamBKey: 'OPP_1L' },
+      { id: 'm9', teamAKey: '1D', teamBKey: 'OPP_1D' },
+      { id: 'm10', teamAKey: '1G', teamBKey: 'OPP_1G' },
+      { id: 'm11', teamAKey: '2K', teamBKey: '2L' },
+      { id: 'm12', teamAKey: '1H', teamBKey: '2J' },
+      { id: 'm13', teamAKey: '1B', teamBKey: 'OPP_1B' },
+      { id: 'm14', teamAKey: '1J', teamBKey: '2H' },
+      { id: 'm15', teamAKey: '1K', teamBKey: 'OPP_1K' },
+      { id: 'm16', teamAKey: '2D', teamBKey: '2G' }
+    ];
+
+    if (stage === 'r32') {
+      const match = r32Matches.find(m => m.id === matchId);
+      const teamA = r32Teams[match.teamAKey] || null;
+      const teamB = r32Teams[match.teamBKey] || null;
+      return { teamA, teamB };
+    }
+
+    const getWinner = (st, mId) => localResults.knockouts?.[st]?.[mId] || null;
+
+    if (stage === 'r16') {
+      const sourceMap = {
+        m1: ['r32', 'm1', 'm3'],
+        m2: ['r32', 'm2', 'm5'],
+        m3: ['r32', 'm4', 'm6'],
+        m4: ['r32', 'm7', 'm8'],
+        m5: ['r32', 'm11', 'm12'],
+        m6: ['r32', 'm9', 'm10'],
+        m7: ['r32', 'm14', 'm16'],
+        m8: ['r32', 'm13', 'm15']
+      };
+      const [prevStage, mKeyA, mKeyB] = sourceMap[matchId];
+      const teamA = getWinner(prevStage, mKeyA);
+      const teamB = getWinner(prevStage, mKeyB);
+      return { teamA, teamB };
+    }
+
+    if (stage === 'qf') {
+      const sourceMap = {
+        m1: ['r16', 'm1', 'm2'],
+        m2: ['r16', 'm5', 'm6'],
+        m3: ['r16', 'm3', 'm4'],
+        m4: ['r16', 'm7', 'm8']
+      };
+      const [prevStage, mKeyA, mKeyB] = sourceMap[matchId];
+      const teamA = getWinner(prevStage, mKeyA);
+      const teamB = getWinner(prevStage, mKeyB);
+      return { teamA, teamB };
+    }
+
+    if (stage === 'sf') {
+      const sourceMap = {
+        m1: ['qf', 'm1', 'm2'],
+        m2: ['qf', 'm3', 'm4']
+      };
+      const [prevStage, mKeyA, mKeyB] = sourceMap[matchId];
+      const teamA = getWinner(prevStage, mKeyA);
+      const teamB = getWinner(prevStage, mKeyB);
+      return { teamA, teamB };
+    }
+
+    return { teamA: null, teamB: null };
+  };
+
   return (
     <div className="glass-card admin-card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '1rem', marginBottom: '2rem' }}>
@@ -1174,14 +1249,23 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
                 const winner = localResults.knockouts?.r32?.[matchId];
                 const gameKey = `r32_${matchId}`;
                 const isCompleted = localResults.completed_games?.includes(gameKey);
+                const { teamA, teamB } = getMatchTeams('r32', matchId);
 
                 return (
                   <div key={matchId} className="glass-card" style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', background: isCompleted ? 'rgba(16, 185, 129, 0.03)' : 'rgba(0,0,0,0.15)' }}>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Match {idx + 1}</span>
-                    {isCompleted && winner ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, color: 'var(--emerald)' }}>
-                        <span>{getTeamFlag(winner)}</span>
-                        <span style={{ fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{winner}</span>
+                    {teamA && teamB ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.8rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: isCompleted && winner === teamA ? 'var(--emerald)' : 'var(--text-primary)', fontWeight: isCompleted && winner === teamA ? 700 : 400 }}>
+                          <span>{getTeamFlag(teamA)}</span>
+                          <span>{teamA}</span>
+                          {isCompleted && winner === teamA && <span style={{ color: 'var(--emerald)', marginLeft: '0.25rem' }}>✓</span>}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: isCompleted && winner === teamB ? 'var(--emerald)' : 'var(--text-primary)', fontWeight: isCompleted && winner === teamB ? 700 : 400 }}>
+                          <span>{getTeamFlag(teamB)}</span>
+                          <span>{teamB}</span>
+                          {isCompleted && winner === teamB && <span style={{ color: 'var(--emerald)', marginLeft: '0.25rem' }}>✓</span>}
+                        </div>
                       </div>
                     ) : (
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>TBD / Sync Pending</span>
@@ -1201,14 +1285,23 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
                 const winner = localResults.knockouts?.r16?.[matchId];
                 const gameKey = `r16_${matchId}`;
                 const isCompleted = localResults.completed_games?.includes(gameKey);
+                const { teamA, teamB } = getMatchTeams('r16', matchId);
 
                 return (
                   <div key={matchId} className="glass-card" style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', background: isCompleted ? 'rgba(16, 185, 129, 0.03)' : 'rgba(0,0,0,0.15)' }}>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Match {16 + idx + 1}</span>
-                    {isCompleted && winner ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, color: 'var(--emerald)' }}>
-                        <span>{getTeamFlag(winner)}</span>
-                        <span style={{ fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{winner}</span>
+                    {teamA && teamB ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.8rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: isCompleted && winner === teamA ? 'var(--emerald)' : 'var(--text-primary)', fontWeight: isCompleted && winner === teamA ? 700 : 400 }}>
+                          <span>{getTeamFlag(teamA)}</span>
+                          <span>{teamA}</span>
+                          {isCompleted && winner === teamA && <span style={{ color: 'var(--emerald)', marginLeft: '0.25rem' }}>✓</span>}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: isCompleted && winner === teamB ? 'var(--emerald)' : 'var(--text-primary)', fontWeight: isCompleted && winner === teamB ? 700 : 400 }}>
+                          <span>{getTeamFlag(teamB)}</span>
+                          <span>{teamB}</span>
+                          {isCompleted && winner === teamB && <span style={{ color: 'var(--emerald)', marginLeft: '0.25rem' }}>✓</span>}
+                        </div>
                       </div>
                     ) : (
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>TBD / Sync Pending</span>
@@ -1228,14 +1321,23 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
                 const winner = localResults.knockouts?.qf?.[matchId];
                 const gameKey = `qf_${matchId}`;
                 const isCompleted = localResults.completed_games?.includes(gameKey);
+                const { teamA, teamB } = getMatchTeams('qf', matchId);
 
                 return (
                   <div key={matchId} className="glass-card" style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', background: isCompleted ? 'rgba(16, 185, 129, 0.03)' : 'rgba(0,0,0,0.15)' }}>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Match {24 + idx + 1}</span>
-                    {isCompleted && winner ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, color: 'var(--emerald)' }}>
-                        <span>{getTeamFlag(winner)}</span>
-                        <span style={{ fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{winner}</span>
+                    {teamA && teamB ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.8rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: isCompleted && winner === teamA ? 'var(--emerald)' : 'var(--text-primary)', fontWeight: isCompleted && winner === teamA ? 700 : 400 }}>
+                          <span>{getTeamFlag(teamA)}</span>
+                          <span>{teamA}</span>
+                          {isCompleted && winner === teamA && <span style={{ color: 'var(--emerald)', marginLeft: '0.25rem' }}>✓</span>}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: isCompleted && winner === teamB ? 'var(--emerald)' : 'var(--text-primary)', fontWeight: isCompleted && winner === teamB ? 700 : 400 }}>
+                          <span>{getTeamFlag(teamB)}</span>
+                          <span>{teamB}</span>
+                          {isCompleted && winner === teamB && <span style={{ color: 'var(--emerald)', marginLeft: '0.25rem' }}>✓</span>}
+                        </div>
                       </div>
                     ) : (
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>TBD / Sync Pending</span>
@@ -1255,14 +1357,23 @@ export default function AdminPanel({ tournamentResults, onResultsUpdated }) {
                 const winner = localResults.knockouts?.sf?.[matchId];
                 const gameKey = `sf_${matchId}`;
                 const isCompleted = localResults.completed_games?.includes(gameKey);
+                const { teamA, teamB } = getMatchTeams('sf', matchId);
 
                 return (
                   <div key={matchId} className="glass-card" style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', background: isCompleted ? 'rgba(16, 185, 129, 0.03)' : 'rgba(0,0,0,0.15)' }}>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Match {28 + idx + 1}</span>
-                    {isCompleted && winner ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, color: 'var(--emerald)' }}>
-                        <span>{getTeamFlag(winner)}</span>
-                        <span style={{ fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{winner}</span>
+                    {teamA && teamB ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', fontSize: '0.8rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: isCompleted && winner === teamA ? 'var(--emerald)' : 'var(--text-primary)', fontWeight: isCompleted && winner === teamA ? 700 : 400 }}>
+                          <span>{getTeamFlag(teamA)}</span>
+                          <span>{teamA}</span>
+                          {isCompleted && winner === teamA && <span style={{ color: 'var(--emerald)', marginLeft: '0.25rem' }}>✓</span>}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: isCompleted && winner === teamB ? 'var(--emerald)' : 'var(--text-primary)', fontWeight: isCompleted && winner === teamB ? 700 : 400 }}>
+                          <span>{getTeamFlag(teamB)}</span>
+                          <span>{teamB}</span>
+                          {isCompleted && winner === teamB && <span style={{ color: 'var(--emerald)', marginLeft: '0.25rem' }}>✓</span>}
+                        </div>
                       </div>
                     ) : (
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>TBD / Sync Pending</span>
